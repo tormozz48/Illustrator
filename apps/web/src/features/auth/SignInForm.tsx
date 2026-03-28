@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { useSignIn } from '@clerk/clerk-react';
-import { useNavigate } from '@tanstack/react-router';
-import { TextInput, PasswordInput, Button, Stack, Alert } from '@mantine/core';
+import { Alert, Button, PasswordInput, Stack, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
+import { useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 
 /**
  * Custom sign-in form using Clerk headless + Mantine
@@ -25,7 +25,7 @@ export function SignInForm() {
   });
 
   const handleSubmit = async (values: typeof form.values) => {
-    if (!signIn) return;
+    if (!signIn || !setActive) return;
 
     setIsLoading(true);
     setError(null);
@@ -36,7 +36,7 @@ export function SignInForm() {
         password: values.password,
       });
 
-      if (result.status === 'complete') {
+      if (result.status === 'complete' && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
         navigate({ to: '/' });
       }

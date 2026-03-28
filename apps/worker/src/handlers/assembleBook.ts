@@ -1,10 +1,10 @@
-import type { Job } from "bullmq";
-import type { AssembleBookPayload } from "@illustrator/shared/jobs";
-import { books } from "@illustrator/shared/db";
-import { eq } from "drizzle-orm";
-import { db } from "../db.js";
-import { logger } from "../logger.js";
-import { orchestrator } from "../orchestrator.js";
+import { books } from '@illustrator/shared/db';
+import type { AssembleBookPayload } from '@illustrator/shared/jobs';
+import type { Job } from 'bullmq';
+import { eq } from 'drizzle-orm';
+import { db } from '../db.js';
+import { logger } from '../logger.js';
+import { orchestrator } from '../orchestrator.js';
 
 /**
  * Stage 4: Combine chapters + illustrations into final PDF
@@ -17,7 +17,7 @@ import { orchestrator } from "../orchestrator.js";
 export async function handleAssembleBook(job: Job<AssembleBookPayload>) {
   const { bookId } = job.data;
 
-  logger.info({ bookId, jobId: job.id }, "Starting book assembly");
+  logger.info({ bookId, jobId: job.id }, 'Starting book assembly');
 
   try {
     // TODO: Implement actual PDF generation
@@ -26,17 +26,14 @@ export async function handleAssembleBook(job: Job<AssembleBookPayload>) {
     await db
       .update(books)
       .set({
-        status: "published",
+        status: 'published',
         updatedAt: new Date(),
       })
       .where(eq(books.id, bookId));
 
-    logger.info(
-      { bookId },
-      "Book assembly completed (PDF generation deferred)"
-    );
+    logger.info({ bookId }, 'Book assembly completed (PDF generation deferred)');
   } catch (error) {
-    logger.error({ bookId, error }, "Book assembly failed");
+    logger.error({ bookId, error }, 'Book assembly failed');
     await orchestrator.markBookFailed(bookId, `Book assembly failed: ${error}`);
     throw error;
   }

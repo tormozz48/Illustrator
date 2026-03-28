@@ -1,6 +1,6 @@
 /**
  * @illustrator/shared — Shared types, schemas, and contracts
- * 
+ *
  * This package is the source of truth for all data types in the monorepo.
  * Type pipeline: Drizzle schema → drizzle-zod → Zod schemas → tRPC → React
  */

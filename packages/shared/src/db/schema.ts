@@ -34,11 +34,11 @@ export const books = pgTable('books', {
   userId: text('user_id').notNull(),
   title: text('title').notNull(),
   status: bookStatus('status').notNull().default('uploading'),
-  
+
   // File references
   originalFileUrl: text('original_file_url'),
   finalPdfUrl: text('final_pdf_url'),
-  
+
   // Style bible (JSONB: { characterDescriptions, visualTone, colorPalette, sceneContext })
   styleBible: jsonb('style_bible').$type<{
     characterDescriptions: Array<{
@@ -50,14 +50,14 @@ export const books = pgTable('books', {
     colorPalette: string[];
     sceneContext: string;
   }>(),
-  
+
   // Chapter tracking for atomic counter pattern
   expectedChapters: text('expected_chapters'), // null until splitter completes
   completedChapters: text('completed_chapters').default('0'),
-  
+
   // Error tracking
   errorMessage: text('error_message'),
-  
+
   // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -72,24 +72,24 @@ export const chapters = pgTable('chapters', {
   bookId: uuid('book_id')
     .notNull()
     .references(() => books.id, { onDelete: 'cascade' }),
-  
+
   // Chapter metadata
   chapterNumber: text('chapter_number').notNull(), // "1", "2", "3"
   title: text('title').notNull(),
   content: text('content').notNull(), // Full chapter text
-  
+
   // Processing state
   status: chapterStatus('status').notNull().default('pending'),
-  
+
   // AI-generated scene description for illustration
   sceneDescription: text('scene_description'),
-  
+
   // Generated illustration URL
   illustrationUrl: text('illustration_url'),
-  
+
   // Error tracking
   errorMessage: text('error_message'),
-  
+
   // Timestamps
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

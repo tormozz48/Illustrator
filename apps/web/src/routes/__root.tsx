@@ -1,6 +1,6 @@
-import { Outlet, createRootRoute } from '@tanstack/react-router';
-import { AppShell, Container } from '@mantine/core';
 import { Header } from '@/components/Header.js';
+import { AppShell, Container } from '@mantine/core';
+import { Outlet, createRootRoute } from '@tanstack/react-router';
 
 /**
  * Root layout for all routes

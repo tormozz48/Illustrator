@@ -1,7 +1,7 @@
-import type { Queue } from "bullmq";
-import type { Database } from "../../types.js";
-import * as queries from "./queries.js";
-import * as jobs from "./jobs.js";
+import type { Queue } from 'bullmq';
+import type { Database } from '../../types.js';
+import * as jobs from './jobs.js';
+import * as queries from './queries.js';
 
 /**
  * Books business logic layer
@@ -12,15 +12,11 @@ export async function listUserBooks(db: Database, userId: string) {
   return queries.findBooksByUserId(db, userId);
 }
 
-export async function getUserBook(
-  db: Database,
-  bookId: string,
-  userId: string
-) {
+export async function getUserBook(db: Database, bookId: string, userId: string) {
   const book = await queries.findUserBook(db, bookId, userId);
 
   if (!book) {
-    throw new Error("Book not found or access denied");
+    throw new Error('Book not found or access denied');
   }
 
   return book;
@@ -37,7 +33,7 @@ export async function createBook(
     userId,
     title,
     originalFileUrl: fileUrl,
-    status: "splitting",
+    status: 'splitting',
   });
 
   // Dispatch first stage: split chapters
@@ -51,27 +47,19 @@ export async function createBook(
   return book;
 }
 
-export async function markBookFailed(
-  db: Database,
-  bookId: string,
-  errorMessage: string
-) {
+export async function markBookFailed(db: Database, bookId: string, errorMessage: string) {
   return queries.updateBook(db, bookId, {
-    status: "failed",
+    status: 'failed',
     errorMessage,
   });
 }
 
-export async function deleteUserBook(
-  db: Database,
-  bookId: string,
-  userId: string
-) {
+export async function deleteUserBook(db: Database, bookId: string, userId: string) {
   // Verify ownership
   const book = await queries.findUserBook(db, bookId, userId);
 
   if (!book) {
-    throw new Error("Book not found or access denied");
+    throw new Error('Book not found or access denied');
   }
 
   await queries.deleteBook(db, bookId);

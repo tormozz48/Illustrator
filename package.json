@@ -11,7 +11,11 @@
     "format": "biome format --write .",
     "check": "biome check --write .",
     "typecheck": "turbo typecheck",
-    "clean": "turbo clean && rm -rf node_modules"
+    "clean": "turbo clean && rm -rf node_modules",
+    "setApiEnv": "cp apps/api/.env.example apps/api/.env",
+    "setWorkerEnv": "cp apps/worker/.env.example apps/worker/.env",
+    "setWebEnv": "cp apps/web/.env.example apps/web/.env",
+    "setEnv": "cp .env.example .env && npm run setApiEnv && npm run setWorkerEnv && npm run setWebEnv"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

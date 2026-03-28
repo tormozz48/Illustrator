@@ -1,9 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { Stack, Title, LoadingOverlay } from '@mantine/core';
-import { trpc } from '@/trpc.js';
 import { BookDetails } from '@/features/books/BookDetails.js';
-import { ChapterList } from '@/features/chapters/ChapterList.js';
 import { BookProgress } from '@/features/books/BookProgress.js';
+import { ChapterList } from '@/features/chapters/ChapterList.js';
+import { trpc } from '@/trpc.js';
+import { LoadingOverlay, Stack, Title } from '@mantine/core';
+import { createFileRoute } from '@tanstack/react-router';
 
 /**
  * Book detail page route

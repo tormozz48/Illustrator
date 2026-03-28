@@ -1,6 +1,6 @@
+import * as schema from '@illustrator/shared/db';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import * as schema from '@illustrator/shared/db';
 import { env } from './env.js';
 
 /**

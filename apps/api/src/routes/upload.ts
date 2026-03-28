@@ -1,8 +1,8 @@
-import type { Request, Response, RequestHandler } from 'express';
-import multer from 'multer';
 import { randomUUID } from 'node:crypto';
-import { uploadToR2 } from '../storage.js';
+import type { Request, RequestHandler, Response } from 'express';
+import multer from 'multer';
 import * as booksService from '../features/books/service.js';
+import { uploadToR2 } from '../storage.js';
 
 /**
  * Multer configuration — store files in memory

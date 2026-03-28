@@ -10,15 +10,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": [
-      "node_modules",
-      "dist",
-      "build",
-      ".next",
-      "coverage",
-      "*.config.js",
-      "*.config.ts"
-    ]
+    "ignore": ["node_modules", "dist", "build", ".next", "coverage", "*.config.js", "*.config.ts"]
   },
   "formatter": {
     "enabled": true,

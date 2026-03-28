@@ -1,12 +1,12 @@
+import { JOB_NAMES } from '@illustrator/shared/jobs';
 import { Worker } from 'bullmq';
 import Redis from 'ioredis';
-import { JOB_NAMES } from '@illustrator/shared/jobs';
 import { env } from './env.js';
-import { logger } from './logger.js';
-import { handleSplitChapters } from './handlers/splitChapters.js';
+import { handleAssembleBook } from './handlers/assembleBook.js';
 import { handleGenerateStyleBible } from './handlers/generateStyleBible.js';
 import { handleProcessChapter } from './handlers/processChapter.js';
-import { handleAssembleBook } from './handlers/assembleBook.js';
+import { handleSplitChapters } from './handlers/splitChapters.js';
+import { logger } from './logger.js';
 
 /**
  * Redis connection for BullMQ

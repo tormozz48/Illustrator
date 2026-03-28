@@ -1,6 +1,6 @@
+import type { JobContracts } from '@illustrator/shared/jobs';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
-import type { JobContracts } from '@illustrator/shared/jobs';
 import { env } from './env.js';
 
 /**

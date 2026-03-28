@@ -1,13 +1,13 @@
-import { initTRPC, TRPCError } from '@trpc/server';
+import { TRPCError, initTRPC } from '@trpc/server';
 import type { CreateExpressContextOptions } from '@trpc/server/adapters/express';
 import { db } from './db.js';
-import { bookQueue } from './queue.js';
 import { logger } from './logger.js';
+import { bookQueue } from './queue.js';
 
 /**
  * tRPC context — available in all procedures
  */
-export const createContext = ({ req, res }: CreateExpressContextOptions) => {
+export const createContext = ({ req }: CreateExpressContextOptions) => {
   return {
     userId: req.userId, // Set by auth middleware
     db,
@@ -39,7 +39,7 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
       message: 'You must be logged in to access this resource',
     });
   }
-  
+
   return next({
     ctx: {
       ...ctx,

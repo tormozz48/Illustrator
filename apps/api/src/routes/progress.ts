@@ -1,6 +1,6 @@
-import type { Request, Response } from 'express';
-import { eq } from 'drizzle-orm';
 import { books } from '@illustrator/shared/db';
+import { eq } from 'drizzle-orm';
+import type { Request, Response } from 'express';
 
 /**
  * GET /api/progress/:bookId
@@ -80,11 +80,7 @@ function calculateProgress(book: {
   let baseProgress = statusProgress[book.status] ?? 0;
 
   // During illustration phase, calculate based on chapter completion
-  if (
-    book.status === 'illustrating' &&
-    book.expectedChapters &&
-    book.completedChapters
-  ) {
+  if (book.status === 'illustrating' && book.expectedChapters && book.completedChapters) {
     const expected = Number.parseInt(book.expectedChapters, 10);
     const completed = Number.parseInt(book.completedChapters, 10);
 

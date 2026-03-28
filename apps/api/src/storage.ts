@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, type PutObjectCommandInput } from '@aws-sdk/client-s3';
+import { PutObjectCommand, type PutObjectCommandInput, S3Client } from '@aws-sdk/client-s3';
 import { env } from './env.js';
 
 /**

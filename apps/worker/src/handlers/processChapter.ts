@@ -1,18 +1,15 @@
-import type { Job } from "bullmq";
-import { randomUUID } from "node:crypto";
-import type { ProcessChapterPayload } from "@illustrator/shared/jobs";
-import {
-  SceneDescriptionResponseSchema,
-  SCENE_DESCRIPTION_PROMPT,
-} from "@illustrator/shared/ai";
-import { books, chapters } from "@illustrator/shared/db";
-import { eq } from "drizzle-orm";
-import { db } from "../db.js";
-import { logger } from "../logger.js";
-import { callGroq } from "../services/groq.js";
-import { generateImage } from "../services/pollinations.js";
-import { uploadToR2 } from "../services/storage.js";
-import { orchestrator } from "../orchestrator.js";
+import { randomUUID } from 'node:crypto';
+import { SCENE_DESCRIPTION_PROMPT, SceneDescriptionResponseSchema } from '@illustrator/shared/ai';
+import { books, chapters } from '@illustrator/shared/db';
+import type { ProcessChapterPayload } from '@illustrator/shared/jobs';
+import type { Job } from 'bullmq';
+import { eq } from 'drizzle-orm';
+import { db } from '../db.js';
+import { logger } from '../logger.js';
+import { orchestrator } from '../orchestrator.js';
+import { callGroq } from '../services/groq.js';
+import { generateImage } from '../services/pollinations.js';
+import { uploadToR2 } from '../services/storage.js';
 
 /**
  * Stage 3: Generate scene description + illustration for one chapter
@@ -22,37 +19,26 @@ import { orchestrator } from "../orchestrator.js";
 export async function handleProcessChapter(job: Job<ProcessChapterPayload>) {
   const { bookId, chapterId } = job.data;
 
-  logger.info(
-    { bookId, chapterId, jobId: job.id },
-    "Starting chapter processing"
-  );
+  logger.info({ bookId, chapterId, jobId: job.id }, 'Starting chapter processing');
 
   try {
     // Get chapter and book (with style bible)
-    const [chapter] = await db
-      .select()
-      .from(chapters)
-      .where(eq(chapters.id, chapterId))
-      .limit(1);
+    const [chapter] = await db.select().from(chapters).where(eq(chapters.id, chapterId)).limit(1);
 
     if (!chapter) {
-      throw new Error("Chapter not found");
+      throw new Error('Chapter not found');
     }
 
-    const [book] = await db
-      .select()
-      .from(books)
-      .where(eq(books.id, bookId))
-      .limit(1);
+    const [book] = await db.select().from(books).where(eq(books.id, bookId)).limit(1);
 
     if (!book || !book.styleBible) {
-      throw new Error("Book or style bible not found");
+      throw new Error('Book or style bible not found');
     }
 
     // Mark chapter as processing
     await db
       .update(chapters)
-      .set({ status: "processing", updatedAt: new Date() })
+      .set({ status: 'processing', updatedAt: new Date() })
       .where(eq(chapters.id, chapterId));
 
     // Generate scene description using Groq
@@ -66,11 +52,7 @@ export async function handleProcessChapter(job: Job<ProcessChapterPayload>) {
 
     // Upload to R2
     const imageKey = `illustrations/${bookId}/${chapterId}-${randomUUID()}.png`;
-    const illustrationUrl = await uploadToR2(
-      imageKey,
-      imageBuffer,
-      "image/png"
-    );
+    const illustrationUrl = await uploadToR2(imageKey, imageBuffer, 'image/png');
 
     // Update chapter with results
     await db
@@ -78,36 +60,30 @@ export async function handleProcessChapter(job: Job<ProcessChapterPayload>) {
       .set({
         sceneDescription: sceneResult.sceneDescription,
         illustrationUrl,
-        status: "completed",
+        status: 'completed',
         updatedAt: new Date(),
       })
       .where(eq(chapters.id, chapterId));
 
-    logger.info(
-      { bookId, chapterId, illustrationUrl },
-      "Chapter processing completed"
-    );
+    logger.info({ bookId, chapterId, illustrationUrl }, 'Chapter processing completed');
 
     // Check if all chapters are complete (atomic counter)
     await orchestrator.onChapterComplete(bookId);
   } catch (error) {
-    logger.error({ bookId, chapterId, error }, "Chapter processing failed");
+    logger.error({ bookId, chapterId, error }, 'Chapter processing failed');
 
     // Mark chapter as failed
     await db
       .update(chapters)
       .set({
-        status: "failed",
+        status: 'failed',
         errorMessage: String(error),
         updatedAt: new Date(),
       })
       .where(eq(chapters.id, chapterId));
 
     // Mark entire book as failed
-    await orchestrator.markBookFailed(
-      bookId,
-      `Chapter ${chapterId} failed: ${error}`
-    );
+    await orchestrator.markBookFailed(bookId, `Chapter ${chapterId} failed: ${error}`);
     throw error;
   }
 }

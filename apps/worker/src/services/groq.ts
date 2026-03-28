@@ -35,7 +35,7 @@ export async function callGroq<T>(
       });
 
       const content = completion.choices[0]?.message?.content;
-      
+
       if (!content) {
         throw new Error('No content in Groq response');
       }
@@ -45,7 +45,7 @@ export async function callGroq<T>(
       const jsonStr = jsonMatch ? (jsonMatch[1] ?? jsonMatch[0]) : content;
 
       const parsed = JSON.parse(jsonStr);
-      
+
       // Validate with Zod schema
       return parseSchema(parsed);
     } catch (error) {

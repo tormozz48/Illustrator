@@ -1,4 +1,4 @@
-import { buildPollinationsUrl, type PollinationsConfig } from '@illustrator/shared/ai';
+import { type PollinationsConfig, buildPollinationsUrl } from '@illustrator/shared/ai';
 import { logger } from '../logger.js';
 
 /**

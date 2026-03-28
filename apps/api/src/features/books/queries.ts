@@ -1,7 +1,7 @@
-import { eq, and } from "drizzle-orm";
-import type { Database } from "../../types.js";
-import { books } from "@illustrator/shared/db";
-import type { BookInsert, BookUpdate } from "@illustrator/shared/db";
+import { books } from '@illustrator/shared/db';
+import type { BookInsert, BookUpdate } from '@illustrator/shared/db';
+import { and, eq } from 'drizzle-orm';
+import type { Database } from '../../types.js';
 
 /**
  * Books data access layer
@@ -9,27 +9,15 @@ import type { BookInsert, BookUpdate } from "@illustrator/shared/db";
  */
 
 export async function findBookById(db: Database, bookId: string) {
-  const [book] = await db
-    .select()
-    .from(books)
-    .where(eq(books.id, bookId))
-    .limit(1);
+  const [book] = await db.select().from(books).where(eq(books.id, bookId)).limit(1);
   return book ?? null;
 }
 
 export async function findBooksByUserId(db: Database, userId: string) {
-  return db
-    .select()
-    .from(books)
-    .where(eq(books.userId, userId))
-    .orderBy(books.createdAt);
+  return db.select().from(books).where(eq(books.userId, userId)).orderBy(books.createdAt);
 }
 
-export async function findUserBook(
-  db: Database,
-  bookId: string,
-  userId: string
-) {
+export async function findUserBook(db: Database, bookId: string, userId: string) {
   const [book] = await db
     .select()
     .from(books)
@@ -43,11 +31,7 @@ export async function createBook(db: Database, data: BookInsert) {
   return book;
 }
 
-export async function updateBook(
-  db: Database,
-  bookId: string,
-  data: BookUpdate
-) {
+export async function updateBook(db: Database, bookId: string, data: BookUpdate) {
   const [book] = await db
     .update(books)
     .set({ ...data, updatedAt: new Date() })

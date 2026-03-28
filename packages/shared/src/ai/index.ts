@@ -170,10 +170,10 @@ export function buildPollinationsUrl(config: PollinationsConfig): string {
     nologo: config.nologo.toString(),
     enhance: config.enhance.toString(),
   });
-  
+
   if (config.seed) {
     params.set('seed', config.seed.toString());
   }
-  
+
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(config.prompt)}?${params}`;
 }

@@ -9,17 +9,17 @@ export const env = createEnv({
   server: {
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().default(3000),
-    
+
     // Database
     DATABASE_URL: z.string().url(),
-    
+
     // Redis (for BullMQ)
     REDIS_URL: z.string().url(),
-    
+
     // Clerk auth
     CLERK_SECRET_KEY: z.string().min(1),
     CLERK_PUBLISHABLE_KEY: z.string().min(1),
-    
+
     // Cloudflare R2 storage
     R2_ACCOUNT_ID: z.string().min(1),
     R2_ACCESS_KEY_ID: z.string().min(1),

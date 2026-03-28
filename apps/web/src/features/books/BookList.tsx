@@ -1,6 +1,6 @@
-import { Stack, Card, Text, Badge, Group, Button, LoadingOverlay } from '@mantine/core';
-import { Link } from '@tanstack/react-router';
 import { trpc } from '@/trpc.js';
+import { Badge, Button, Card, Group, LoadingOverlay, Stack, Text } from '@mantine/core';
+import { Link } from '@tanstack/react-router';
 
 /**
  * List of user's books
@@ -29,9 +29,9 @@ export function BookList() {
               <Text fw={500}>{book.title}</Text>
               <Badge color={getStatusColor(book.status)}>{book.status}</Badge>
             </div>
-            <Button component={Link} to="/books/$bookId" params={{ bookId: book.id }}>
-              View Details
-            </Button>
+            <Link to={`/books/${book.id}` as unknown as string}>
+              <Button>View Details</Button>
+            </Link>
           </Group>
         </Card>
       ))}

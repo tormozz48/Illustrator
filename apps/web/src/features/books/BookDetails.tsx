@@ -1,8 +1,16 @@
-import { Card, Stack, Text, Badge, Group } from '@mantine/core';
-import type { BookSelect } from '@illustrator/shared/db';
+import type { BookSelect } from '@illustrator/shared';
+import { Badge, Card, Group, Stack, Text } from '@mantine/core';
+
+/**
+ * Serialized book type (dates are strings after tRPC serialization)
+ */
+type SerializedBook = Omit<BookSelect, 'createdAt' | 'updatedAt'> & {
+  createdAt: string;
+  updatedAt: string;
+};
 
 interface BookDetailsProps {
-  book: BookSelect;
+  book: SerializedBook;
 }
 
 /**

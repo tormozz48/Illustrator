@@ -1,5 +1,5 @@
-import { Group, Button, Text } from '@mantine/core';
-import { useUser, useClerk } from '@clerk/clerk-react';
+import { useClerk, useUser } from '@clerk/clerk-react';
+import { Button, Group, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 
 /**
@@ -20,7 +20,9 @@ export function Header() {
       <Group>
         {isSignedIn ? (
           <>
-            <Text size="sm">Hello, {user.firstName ?? user.emailAddresses[0]?.emailAddress}</Text>
+            <Text size="sm">
+              Hello, {user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress ?? 'User'}
+            </Text>
             <Button variant="subtle" onClick={() => signOut()}>
               Sign Out
             </Button>

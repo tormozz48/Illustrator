@@ -188,7 +188,15 @@
     "public.book_status": {
       "name": "book_status",
       "schema": "public",
-      "values": ["uploading", "splitting", "generatingBible", "illustrating", "assembling", "published", "failed"]
+      "values": [
+        "uploading",
+        "splitting",
+        "generatingBible",
+        "illustrating",
+        "assembling",
+        "published",
+        "failed"
+      ]
     },
     "public.chapter_status": {
       "name": "chapter_status",

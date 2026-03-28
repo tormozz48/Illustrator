@@ -4,6 +4,18 @@
  * DO NOT EDIT MANUALLY
  */
 
-// Placeholder for TanStack Router codegen
-// Run `pnpm dev` to generate actual route tree
-export const routeTree = {};
+import type { RootRoute, Route } from '@tanstack/react-router';
+import { Route as rootRoute } from './routes/__root.js';
+import { Route as booksBookIdRoute } from './routes/books.$bookId.js';
+import { Route as indexRoute } from './routes/index.js';
+import { Route as signInRoute } from './routes/sign-in.js';
+import { Route as signUpRoute } from './routes/sign-up.js';
+
+// Build route tree with proper typing
+// Type assertion needed because plugin will regenerate with correct types
+export const routeTree = rootRoute.addChildren([
+  indexRoute as unknown as Route,
+  signInRoute as unknown as Route,
+  signUpRoute as unknown as Route,
+  booksBookIdRoute as unknown as Route,
+]) as unknown as RootRoute;

@@ -1,12 +1,12 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { ClerkProvider } from '@clerk/clerk-react';
+import { ClerkProvider, useAuth } from '@clerk/clerk-react';
 import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
-import { trpc, trpcClient } from './trpc.js';
-import { routeTree } from './routeTree.gen.js';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { env } from './env.js';
+import { routeTree } from './routeTree.gen.js';
+import { setAuthTokenGetter, trpc, trpcClient } from './trpc.js';
 import '@mantine/core/styles.css';
 
 /**
@@ -26,9 +26,6 @@ const queryClient = new QueryClient({
  */
 const router = createRouter({
   routeTree,
-  context: {
-    queryClient,
-  },
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
 });
@@ -51,18 +48,32 @@ if (!rootElement) {
 }
 
 /**
+ * App wrapper that initializes auth token getter
+ */
+function App() {
+  const { getToken } = useAuth();
+
+  // Initialize auth token getter for tRPC
+  setAuthTokenGetter(() => getToken());
+
+  return (
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <MantineProvider>
+          <RouterProvider router={router} />
+        </MantineProvider>
+      </QueryClientProvider>
+    </trpc.Provider>
+  );
+}
+
+/**
  * App entry point
  */
 createRoot(rootElement).render(
   <StrictMode>
     <ClerkProvider publishableKey={env.VITE_CLERK_PUBLISHABLE_KEY}>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          <MantineProvider>
-            <RouterProvider router={router} />
-          </MantineProvider>
-        </QueryClientProvider>
-      </trpc.Provider>
+      <App />
     </ClerkProvider>
   </StrictMode>
 );

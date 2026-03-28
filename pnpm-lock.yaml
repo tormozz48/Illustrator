@@ -99,6 +99,12 @@ importers:
       '@clerk/clerk-react':
         specifier: ^5.20.0
         version: 5.61.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@illustrator/api':
+        specifier: workspace:*
+        version: link:../api
+      '@illustrator/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@mantine/core':
         specifier: ^7.15.2
         version: 7.17.8(@mantine/hooks@7.17.8(react@19.2.4))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

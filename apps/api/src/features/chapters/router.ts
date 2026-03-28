@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, protectedProcedure } from '../../trpc.js';
+import { protectedProcedure, router } from '../../trpc.js';
 import * as service from './service.js';
 
 /**

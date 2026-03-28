@@ -1,12 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { Stack, Title, Text, Button } from '@mantine/core';
-import { useUser } from '@clerk/clerk-react';
 import { BookList } from '@/features/books/BookList.js';
+import { useUser } from '@clerk/clerk-react';
+import { Button, Stack, Text, Title } from '@mantine/core';
+import { createFileRoute } from '@tanstack/react-router';
 
 /**
  * Home page route
  */
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute()({
   component: HomePage,
 });
 

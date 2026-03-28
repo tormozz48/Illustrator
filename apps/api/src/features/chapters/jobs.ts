@@ -1,19 +1,16 @@
-import type { Queue } from 'bullmq';
 import {
   JOB_NAMES,
   type ProcessChapterPayload,
   ProcessChapterPayloadSchema,
 } from '@illustrator/shared/jobs';
+import type { Queue } from 'bullmq';
 
 /**
  * Chapter job dispatch layer
  * Type-safe job creation using shared contracts
  */
 
-export async function dispatchProcessChapter(
-  queue: Queue,
-  payload: ProcessChapterPayload
-) {
+export async function dispatchProcessChapter(queue: Queue, payload: ProcessChapterPayload) {
   const validated = ProcessChapterPayloadSchema.parse(payload);
   await queue.add(JOB_NAMES.PROCESS_CHAPTER, validated);
 }

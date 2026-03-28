@@ -1,6 +1,6 @@
-import { router } from './trpc.js';
 import { booksRouter } from './features/books/router.js';
 import { chaptersRouter } from './features/chapters/router.js';
+import { router } from './trpc.js';
 
 /**
  * Main tRPC router

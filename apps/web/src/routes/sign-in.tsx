@@ -1,7 +1,7 @@
-import { createFileRoute, Navigate } from '@tanstack/react-router';
-import { Container, Paper, Title } from '@mantine/core';
-import { useUser } from '@clerk/clerk-react';
 import { SignInForm } from '@/features/auth/SignInForm.js';
+import { useUser } from '@clerk/clerk-react';
+import { Container, Paper, Title } from '@mantine/core';
+import { Navigate, createFileRoute } from '@tanstack/react-router';
 
 /**
  * Sign-in page route

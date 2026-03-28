@@ -1,12 +1,12 @@
-import { Queue } from 'bullmq';
-import Redis from 'ioredis';
-import { eq } from 'drizzle-orm';
-import { JOB_NAMES } from '@illustrator/shared/jobs';
 import { books } from '@illustrator/shared/db';
 import type { ChapterSelect } from '@illustrator/shared/db';
+import { JOB_NAMES } from '@illustrator/shared/jobs';
+import { Queue } from 'bullmq';
+import { eq } from 'drizzle-orm';
+import Redis from 'ioredis';
 import { db } from './db.js';
-import { logger } from './logger.js';
 import { env } from './env.js';
+import { logger } from './logger.js';
 
 /**
  * Orchestrator manages state transitions between processing stages
@@ -46,7 +46,10 @@ class Orchestrator {
    * Stage 2 → 3: After style bible is generated, fan-out to process all chapters
    */
   async onStyleBibleComplete(bookId: string, chapterIds: string[]) {
-    logger.info({ bookId, chapterCount: chapterIds.length }, 'Dispatching chapter processing (fan-out)');
+    logger.info(
+      { bookId, chapterCount: chapterIds.length },
+      'Dispatching chapter processing (fan-out)'
+    );
 
     const jobs = chapterIds.map((chapterId) => ({
       name: JOB_NAMES.PROCESS_CHAPTER,
@@ -65,7 +68,12 @@ class Orchestrator {
     const [result] = await db
       .update(books)
       .set({
-        completedChapters: String(Number((await db.select().from(books).where(eq(books.id, bookId)).limit(1))[0]?.completedChapters ?? '0') + 1),
+        completedChapters: String(
+          Number(
+            (await db.select().from(books).where(eq(books.id, bookId)).limit(1))[0]
+              ?.completedChapters ?? '0'
+          ) + 1
+        ),
         updatedAt: new Date(),
       })
       .where(eq(books.id, bookId))
@@ -86,7 +94,7 @@ class Orchestrator {
     // If all chapters are done, trigger assembly
     if (completed >= expected) {
       logger.info({ bookId }, 'All chapters complete, dispatching assembly');
-      
+
       await this.queue.add(JOB_NAMES.ASSEMBLE_BOOK, { bookId });
     }
   }
