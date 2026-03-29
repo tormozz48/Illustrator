@@ -12,7 +12,7 @@ import {
 } from './schemas.js';
 
 const TEXT_MODEL = 'gemini-2.5-flash';
-const IMAGE_MODEL = 'gemini-2.0-flash-preview-image-generation';
+const IMAGE_MODEL = 'gemini-2.5-flash-image-preview';
 
 export class GeminiClient {
   private readonly genAI: GoogleGenerativeAI;
