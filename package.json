@@ -1,0 +1,38 @@
+{
+  "name": "bookillust",
+  "version": "0.1.0",
+  "description": "CLI tool that transforms text books into AI-illustrated HTML books using Gemini",
+  "type": "module",
+  "bin": {
+    "bookillust": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --dts",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "eta": "^3.5.0",
+    "jimp": "^1.6.0",
+    "ora": "^8.1.1",
+    "p-map": "^7.0.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
