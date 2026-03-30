@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import chalk from 'chalk';
 import { Command } from 'commander';
+import { logger } from './logger.js';
 import { run } from './pipeline/orchestrator.js';
 import { AppConfigSchema } from './schemas.js';
 
@@ -29,6 +29,12 @@ program
       cache: boolean;
       verbose?: boolean;
     }) => {
+      // Elevate to debug level when --verbose is passed so logger.debug() calls
+      // become visible without changing the default log level.
+      if (opts.verbose) {
+        logger.level = 'debug';
+      }
+
       const parseResult = AppConfigSchema.safeParse({
         inputPath: opts.input,
         outputDir: opts.output,
@@ -42,17 +48,16 @@ program
         const errors = parseResult.error.issues
           .map((i) => `  ${i.path.join('.')}: ${i.message}`)
           .join('\n');
-        console.error(chalk.red(`\nInvalid options:\n${errors}\n`));
+        logger.error(`Invalid options:\n${errors}`);
         process.exit(1);
       }
 
       try {
         await run(parseResult.data);
       } catch (err) {
-        console.error(chalk.red(`\nError: ${err instanceof Error ? err.message : String(err)}\n`));
-        if (parseResult.data.verbose && err instanceof Error && err.stack) {
-          console.error(chalk.dim(err.stack));
-        }
+        logger.error(err instanceof Error ? err.message : String(err), {
+          ...(err instanceof Error && err.stack ? { stack: err.stack } : {}),
+        });
         process.exit(1);
       }
     }

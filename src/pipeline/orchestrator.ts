@@ -1,8 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import chalk from 'chalk';
-import ora from 'ora';
 import { GeminiClient } from '../gemini.js';
+import { createSpinner, logger } from '../logger.js';
 import type { AppConfig, BookResult } from '../schemas.js';
 import { buildBible } from './analyzer.js';
 import { assemble } from './assembler.js';
@@ -12,25 +11,23 @@ import { splitIntoChapters } from './splitter.js';
 
 export async function run(appConfig: AppConfig): Promise<BookResult> {
   const gemini = new GeminiClient();
-  const spinner = ora({ color: 'cyan' });
+  const spinner = createSpinner();
 
   // ── Stage 1: Read ──────────────────────────────────────────────────────────
   spinner.start('Reading book...');
   const rawText = await readBook(appConfig.inputPath);
   const title = extractTitle(rawText, basename(appConfig.inputPath));
-  spinner.succeed(`Loaded: "${chalk.bold(title)}" (${rawText.length.toLocaleString()} chars)`);
+  spinner.succeed(`Loaded: "${title}" (${rawText.length.toLocaleString()} chars)`);
 
   // ── Stage 2: Analyze ───────────────────────────────────────────────────────
   spinner.start('Analyzing — building character & style bible...');
   const bible = await buildBible(gemini, rawText);
   spinner.succeed(
-    `Bible: ${chalk.bold(bible.characters.length)} characters · ${bible.settings.length} settings · style: ${bible.styleGuide.artStyle}`
+    `Bible: ${bible.characters.length} characters · ${bible.settings.length} settings · style: ${bible.styleGuide.artStyle}`
   );
 
-  if (appConfig.verbose) {
-    for (const ch of bible.characters) {
-      console.log(chalk.dim(`  [${ch.role.padEnd(12)}] ${ch.name}`));
-    }
+  for (const ch of bible.characters) {
+    logger.debug(`[${ch.role.padEnd(12)}] ${ch.name}`);
   }
 
   // ── Stage 2b: Anchor images ────────────────────────────────────────────────
@@ -48,9 +45,7 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
       try {
         const buf = await gemini.generateImage(anchorPrompt);
         anchorImages.set(char.name, buf);
-        if (appConfig.verbose) {
-          console.log(chalk.dim(`  anchor ready: ${char.name}`));
-        }
+        logger.debug(`anchor ready: ${char.name}`);
       } catch (err) {
         spinner.warn(
           `Anchor skipped for ${char.name}: ${err instanceof Error ? err.message : String(err)}`
@@ -64,33 +59,26 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   // ── Stage 3: Split ─────────────────────────────────────────────────────────
   spinner.start('Splitting into chapters...');
   const chapters = await splitIntoChapters(gemini, rawText);
-  spinner.succeed(`Chapters: ${chalk.bold(chapters.length)}`);
+  spinner.succeed(`Chapters: ${chapters.length}`);
 
   // ── Stage 4: Illustrate ────────────────────────────────────────────────────
-  console.log(
-    chalk.cyan(
-      `\nIllustrating ${chalk.bold(chapters.length)} chapters (concurrency: ${appConfig.concurrency})...\n`
-    )
+  logger.info(
+    `Illustrating ${chapters.length} chapters (concurrency: ${appConfig.concurrency})...`
   );
 
-  let completed = 0;
   const enrichedChapters = await illustrateChapters(
     gemini,
     chapters,
     bible,
     anchorImages,
     appConfig.concurrency,
-    appConfig.verbose,
     (done, total) => {
-      completed = done;
-      process.stdout.write(`\r  ${chalk.green('✓')} ${done}/${total} chapters illustrated`);
+      logger.debug(`Progress: ${done}/${total} chapters illustrated`);
     }
   );
 
-  if (completed > 0) process.stdout.write('\n');
-
   const illustrated = enrichedChapters.filter((c) => c.illustration !== undefined).length;
-  console.log(chalk.green(`\n✓ Illustrated ${illustrated}/${chapters.length} chapters\n`));
+  logger.info(`Illustrated ${illustrated}/${chapters.length} chapters`);
 
   // ── Stage 5: Assemble ──────────────────────────────────────────────────────
   spinner.start('Assembling HTML book...');
@@ -102,7 +90,7 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   const outputPath = join(appConfig.outputDir, 'book.html');
   await writeFile(outputPath, html, 'utf-8');
 
-  console.log(chalk.bold.green(`\nBook ready: ${outputPath}\n`));
+  logger.info(`Book ready: ${outputPath}`);
 
   return {
     title,

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { logger } from './logger.js';
 
 const EnvSchema = z.object({
   GEMINI_API_KEY: z
@@ -13,7 +14,7 @@ const parsed = EnvSchema.safeParse(process.env);
 
 if (!parsed.success) {
   const errors = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
-  console.error(`\nEnvironment configuration error:\n${errors}\n`);
+  logger.error(`Environment configuration error:\n${errors}`);
   process.exit(1);
 }
 

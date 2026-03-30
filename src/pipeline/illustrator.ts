@@ -1,6 +1,7 @@
 import { Jimp } from 'jimp';
 import pMap from 'p-map';
 import type { GeminiClient } from '../gemini.js';
+import { logger } from '../logger.js';
 import type { CharacterBible, EnrichedChapter, KeyScene, RawChapter } from '../schemas.js';
 
 const MAX_RETRIES = 2;
@@ -65,8 +66,7 @@ async function illustrateChapter(
   gemini: GeminiClient,
   chapter: RawChapter,
   bible: CharacterBible,
-  anchorImages: Map<string, Buffer>,
-  verbose: boolean
+  anchorImages: Map<string, Buffer>
 ): Promise<EnrichedChapter> {
   const keyScene = await gemini.findKeyScene(chapter, bible);
 
@@ -81,19 +81,15 @@ async function illustrateChapter(
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const prompt = buildImagePrompt(keyScene, bible, attempt > 0 ? suggestions : []);
 
-    if (verbose) {
-      process.stderr.write(`  ch${chapter.number} attempt ${attempt + 1}/${MAX_RETRIES + 1}\n`);
-    }
+    logger.debug(`ch${chapter.number} attempt ${attempt + 1}/${MAX_RETRIES + 1}`);
 
     let imageBuffer: Buffer;
     try {
       imageBuffer = await gemini.generateImage(prompt, refs);
     } catch (err) {
-      if (verbose) {
-        process.stderr.write(
-          `  ch${chapter.number} image gen failed: ${err instanceof Error ? err.message : String(err)}\n`
-        );
-      }
+      logger.debug(
+        `ch${chapter.number} image gen failed: ${err instanceof Error ? err.message : String(err)}`
+      );
       break;
     }
 
@@ -145,7 +141,6 @@ export async function illustrateChapters(
   bible: CharacterBible,
   anchorImages: Map<string, Buffer>,
   concurrency: number,
-  verbose: boolean,
   onProgress?: (completed: number, total: number) => void
 ): Promise<EnrichedChapter[]> {
   let completed = 0;
@@ -154,7 +149,7 @@ export async function illustrateChapters(
   return pMap(
     chapters,
     async (chapter) => {
-      const result = await illustrateChapter(gemini, chapter, bible, anchorImages, verbose);
+      const result = await illustrateChapter(gemini, chapter, bible, anchorImages);
       completed++;
       onProgress?.(completed, total);
       return result;
