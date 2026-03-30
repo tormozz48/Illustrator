@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { config } from "./config.js";
 import {
   type CharacterBible,
@@ -11,19 +11,17 @@ import {
   ValidationResultSchema,
 } from "./schemas.js";
 
-const TEXT_MODEL = 'gemini-2.5-flash';
-const IMAGE_MODEL = 'gemini-2.5-flash-image';
+const TEXT_MODEL = "gemini-2.5-flash";
+const IMAGE_MODEL = "gemini-2.5-flash-image";
 
 export class GeminiClient {
-  private readonly genAI: GoogleGenerativeAI;
+  private readonly genAI: GoogleGenAI;
 
   constructor(apiKey: string = config.GEMINI_API_KEY) {
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    this.genAI = new GoogleGenAI({ apiKey });
   }
 
   async analyzeBook(text: string): Promise<CharacterBible> {
-    const model = this.genAI.getGenerativeModel({ model: TEXT_MODEL });
-
     const prompt = `Analyze this book text and extract a complete character and style bible.
 
 Return a JSON object with this EXACT structure (no extra fields):
@@ -73,18 +71,17 @@ Instructions:
 Book text:
 ${text}`;
 
-    const result = await model.generateContent({
+    const result = await this.genAI.models.generateContent({
+      model: TEXT_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" },
+      config: { responseMimeType: "application/json" },
     });
 
-    const json = JSON.parse(result.response.text()) as unknown;
+    const json = JSON.parse(result.text ?? "") as unknown;
     return CharacterBibleSchema.parse(json);
   }
 
   async splitChapters(text: string): Promise<RawChapter[]> {
-    const model = this.genAI.getGenerativeModel({ model: TEXT_MODEL });
-
     const prompt = `Split this book text into chapters.
 
 Return a JSON object with this EXACT structure:
@@ -108,12 +105,13 @@ Instructions:
 Book text:
 ${text}`;
 
-    const result = await model.generateContent({
+    const result = await this.genAI.models.generateContent({
+      model: TEXT_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" },
+      config: { responseMimeType: "application/json" },
     });
 
-    const json = JSON.parse(result.response.text()) as unknown;
+    const json = JSON.parse(result.text ?? "") as unknown;
     const parsed = SplitResultSchema.parse(json);
     return parsed.chapters;
   }
@@ -122,8 +120,6 @@ ${text}`;
     chapter: RawChapter,
     bible: CharacterBible
   ): Promise<KeyScene> {
-    const model = this.genAI.getGenerativeModel({ model: TEXT_MODEL });
-
     const characterNames = bible.characters.map((c) => c.name).join(", ");
     const settingNames = bible.settings.map((s) => s.name).join(", ");
 
@@ -150,18 +146,17 @@ Instructions:
 Chapter ${chapter.number}: ${chapter.title}
 ${chapter.content}`;
 
-    const result = await model.generateContent({
+    const result = await this.genAI.models.generateContent({
+      model: TEXT_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" },
+      config: { responseMimeType: "application/json" },
     });
 
-    const json = JSON.parse(result.response.text()) as unknown;
+    const json = JSON.parse(result.text ?? "") as unknown;
     return KeySceneSchema.parse(json);
   }
 
   async generateImage(prompt: string, refs: Buffer[] = []): Promise<Buffer> {
-    const model = this.genAI.getGenerativeModel({ model: IMAGE_MODEL });
-
     type Part =
       | { text: string }
       | { inlineData: { mimeType: string; data: string } };
@@ -179,17 +174,18 @@ ${chapter.content}`;
 
     parts.push({ text: prompt });
 
-    const result = await model.generateContent({
+    const result = await this.genAI.models.generateContent({
+      model: IMAGE_MODEL,
       contents: [{ role: "user", parts }],
-      generationConfig: {
+      config: {
         responseModalities: ["IMAGE"],
-      } as Record<string, unknown>,
+      },
     });
 
-    const candidate = result.response.candidates?.[0];
+    const candidate = result.candidates?.[0];
     if (!candidate) throw new Error("No image candidate returned from Gemini");
 
-    for (const part of candidate.content.parts) {
+    for (const part of candidate.content?.parts ?? []) {
       if (part.inlineData?.data) {
         return Buffer.from(part.inlineData.data, "base64");
       }
@@ -202,8 +198,6 @@ ${chapter.content}`;
     image: Buffer,
     bible: CharacterBible
   ): Promise<ValidationResult> {
-    const model = this.genAI.getGenerativeModel({ model: TEXT_MODEL });
-
     const characterDescriptions = bible.characters
       .map(
         (c) =>
@@ -242,7 +236,8 @@ Rules:
 3. If pass is false, suggestions must list specific prompt additions to fix each failed trait
 4. If no named characters appear in the scene, score art_style_match and overall_consistency only (set others to 1.0)`;
 
-    const result = await model.generateContent({
+    const result = await this.genAI.models.generateContent({
+      model: TEXT_MODEL,
       contents: [
         {
           role: "user",
@@ -257,10 +252,10 @@ Rules:
           ],
         },
       ],
-      generationConfig: { responseMimeType: "application/json" },
+      config: { responseMimeType: "application/json" },
     });
 
-    const json = JSON.parse(result.response.text()) as unknown;
+    const json = JSON.parse(result.text ?? "") as unknown;
     return ValidationResultSchema.parse(json);
   }
 }
