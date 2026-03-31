@@ -2,7 +2,7 @@ import { Jimp } from 'jimp';
 import pMap from 'p-map';
 import type { GeminiClient } from '../gemini.js';
 import { logger } from '../logger.js';
-import type { CharacterBible, EnrichedChapter, KeyScene, RawChapter } from '../schemas.js';
+import type { CharacterBible, EnrichedChapter, KeyScene, RawChapter } from '../schemas/index.js';
 
 const MAX_RETRIES = 2;
 const PASS_THRESHOLD = 0.7;

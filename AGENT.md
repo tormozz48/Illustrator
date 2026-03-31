@@ -33,7 +33,7 @@ npm run clean      # rm -rf output/
 ## Code Conventions
 
 - All modules use named exports; no default exports
-- Zod schemas defined in `src/schemas.ts`; types inferred with `z.infer<>`
+- Zod schemas defined in `src/schemas/` (split by domain); import from `src/schemas/index.ts`; types inferred with `z.infer<>`
 - Prompts are pure functions in `src/prompts/` — keep AI prompt logic isolated there
 - No `any`; no non-null assertions (biome enforces this)
 - Unused variables are errors, not warnings
@@ -46,7 +46,13 @@ npm run clean      # rm -rf output/
 src/
   index.ts          # CLI entry (Commander)
   config.ts         # Env config (Zod)
-  schemas.ts        # All Zod schemas
+  schemas/          # Zod schemas split by domain
+    bible.ts        #   Character & Style Bible
+    chapters.ts     #   Chapters & Scenes
+    config.ts       #   App config
+    illustrations.ts#   Illustrations & output
+    validation.ts   #   Image validation
+    index.ts        #   Single re-export point
   gemini.ts         # Gemini API client
   pipeline/         # 5-stage pipeline
   prompts/          # AI prompt templates

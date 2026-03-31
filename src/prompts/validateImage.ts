@@ -1,4 +1,4 @@
-import type { CharacterBible } from "../schemas.js";
+import type { CharacterBible } from "../schemas/index.js";
 
 export function validateImagePrompt(bible: CharacterBible): string {
   const characterDescriptions = bible.characters

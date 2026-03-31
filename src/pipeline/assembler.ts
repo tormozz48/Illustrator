@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Eta } from 'eta';
-import type { CharacterBible, EnrichedChapter } from '../schemas.js';
+import type { CharacterBible, EnrichedChapter } from '../schemas/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

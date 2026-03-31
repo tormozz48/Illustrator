@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { logger } from './logger.js';
 import { run } from './pipeline/orchestrator.js';
-import { AppConfigSchema } from './schemas.js';
+import { AppConfigSchema } from './schemas/index.js';
 
 const program = new Command();
 

@@ -1,4 +1,4 @@
-import type { CharacterBible, RawChapter } from "../schemas.js";
+import type { CharacterBible, RawChapter } from "../schemas/index.js";
 
 export function findKeyScenePrompt(
   chapter: RawChapter,

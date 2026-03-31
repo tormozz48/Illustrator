@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { GeminiClient } from '../gemini.js';
 import { createSpinner, logger } from '../logger.js';
-import type { AppConfig, BookResult } from '../schemas.js';
+import type { AppConfig, BookResult } from '../schemas/index.js';
 import { buildBible } from './analyzer.js';
 import { assemble } from './assembler.js';
 import { illustrateChapters } from './illustrator.js';

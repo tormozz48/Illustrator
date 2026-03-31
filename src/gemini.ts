@@ -13,7 +13,7 @@ import {
   SplitResultSchema,
   type ValidationResult,
   ValidationResultSchema,
-} from "./schemas.js";
+} from "./schemas/index.js";
 
 const TEXT_MODEL = "gemini-2.5-flash";
 const IMAGE_MODEL = "gemini-2.5-flash-image";
