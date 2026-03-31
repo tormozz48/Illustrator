@@ -220,7 +220,7 @@
   </nav>
 
   <% for (let i = 0; i < it.chapters.length; i++) { %>
-  <%~ it.renderChapter(it.chapters[i], i, it.chapters.length) %>
+  <%~ include('chapter', { ch: it.chapters[i], i, total: it.chapters.length, renderLines: it.renderLines }) %>
   <% } %>
 
   <footer class="book-footer">
