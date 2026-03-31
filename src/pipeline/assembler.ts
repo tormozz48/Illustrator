@@ -5,18 +5,6 @@ import type { CharacterBible, EnrichedChapter } from '../schemas.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function renderLines(paragraph: string): string {
-  return paragraph.split('\n').map(escapeHtml).join('<br>');
-}
-
 export async function assemble(
   title: string,
   author: string | undefined,
@@ -36,4 +24,16 @@ export async function assemble(
     generatedAt: new Date().toISOString(),
     renderLines,
   });
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderLines(paragraph: string): string {
+  return paragraph.split('\n').map(escapeHtml).join('<br>');
 }

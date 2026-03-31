@@ -9,6 +9,29 @@ const PASS_THRESHOLD = 0.7;
 const OUTPUT_WIDTH = 800;
 const JPEG_QUALITY = 85;
 
+export async function illustrateChapters(
+  gemini: GeminiClient,
+  chapters: RawChapter[],
+  bible: CharacterBible,
+  anchorImages: Map<string, Buffer>,
+  concurrency: number,
+  onProgress?: (completed: number, total: number) => void
+): Promise<EnrichedChapter[]> {
+  let completed = 0;
+  const total = chapters.length;
+
+  return pMap(
+    chapters,
+    async (chapter) => {
+      const result = await illustrateChapter(gemini, chapter, bible, anchorImages);
+      completed++;
+      onProgress?.(completed, total);
+      return result;
+    },
+    { concurrency }
+  );
+}
+
 function buildImagePrompt(
   scene: KeyScene,
   bible: CharacterBible,
@@ -133,27 +156,4 @@ async function illustrateChapter(
   } catch {
     return { ...chapter, keyScene };
   }
-}
-
-export async function illustrateChapters(
-  gemini: GeminiClient,
-  chapters: RawChapter[],
-  bible: CharacterBible,
-  anchorImages: Map<string, Buffer>,
-  concurrency: number,
-  onProgress?: (completed: number, total: number) => void
-): Promise<EnrichedChapter[]> {
-  let completed = 0;
-  const total = chapters.length;
-
-  return pMap(
-    chapters,
-    async (chapter) => {
-      const result = await illustrateChapter(gemini, chapter, bible, anchorImages);
-      completed++;
-      onProgress?.(completed, total);
-      return result;
-    },
-    { concurrency }
-  );
 }

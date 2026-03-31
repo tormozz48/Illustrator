@@ -38,6 +38,7 @@ npm run clean      # rm -rf output/
 - No `any`; no non-null assertions (biome enforces this)
 - Unused variables are errors, not warnings
 - Import types with `import type` where possible
+- In every `.ts` file, place exported functions before non-exported (private) functions
 
 ## Project Structure
 
