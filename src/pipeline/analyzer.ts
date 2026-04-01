@@ -1,6 +1,6 @@
-import type { GeminiClient } from '../gemini.js';
+import type { OpenRouterClient } from '../openRouter.js';
 import type { CharacterBible } from '../schemas/index.js';
 
-export async function buildBible(gemini: GeminiClient, text: string): Promise<CharacterBible> {
-  return gemini.analyzeBook(text);
+export async function buildBible(client: OpenRouterClient, text: string): Promise<CharacterBible> {
+  return client.analyzeBook(text);
 }

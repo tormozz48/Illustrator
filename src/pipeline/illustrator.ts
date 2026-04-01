@@ -1,6 +1,6 @@
 import { Jimp } from 'jimp';
 import pMap from 'p-map';
-import type { GeminiClient } from '../gemini.js';
+import type { OpenRouterClient } from '../openRouter.js';
 import { logger } from '../logger.js';
 import type { CharacterBible, EnrichedChapter, KeyScene, RawChapter } from '../schemas/index.js';
 
@@ -10,7 +10,7 @@ const OUTPUT_WIDTH = 800;
 const JPEG_QUALITY = 85;
 
 export async function illustrateChapters(
-  gemini: GeminiClient,
+  client: OpenRouterClient,
   chapters: RawChapter[],
   bible: CharacterBible,
   anchorImages: Map<string, Buffer>,
@@ -23,7 +23,7 @@ export async function illustrateChapters(
   return pMap(
     chapters,
     async (chapter) => {
-      const result = await illustrateChapter(gemini, chapter, bible, anchorImages);
+      const result = await illustrateChapter(client, chapter, bible, anchorImages);
       completed++;
       onProgress?.(completed, total);
       return result;
@@ -86,12 +86,12 @@ async function optimizeImage(
 }
 
 async function illustrateChapter(
-  gemini: GeminiClient,
+  client: OpenRouterClient,
   chapter: RawChapter,
   bible: CharacterBible,
   anchorImages: Map<string, Buffer>
 ): Promise<EnrichedChapter> {
-  const keyScene = await gemini.findKeyScene(chapter, bible);
+  const keyScene = await client.findKeyScene(chapter, bible);
 
   const refs = keyScene.characters
     .map((name) => anchorImages.get(name))
@@ -108,7 +108,7 @@ async function illustrateChapter(
 
     let imageBuffer: Buffer;
     try {
-      imageBuffer = await gemini.generateImage(prompt, refs);
+      imageBuffer = await client.generateImage(prompt, refs);
     } catch (err) {
       logger.debug(
         `ch${chapter.number} image gen failed: ${err instanceof Error ? err.message : String(err)}`
@@ -116,9 +116,9 @@ async function illustrateChapter(
       break;
     }
 
-    let validation: Awaited<ReturnType<typeof gemini.validateImage>>;
+    let validation: Awaited<ReturnType<typeof client.validateImage>>;
     try {
-      validation = await gemini.validateImage(imageBuffer, bible);
+      validation = await client.validateImage(imageBuffer, bible);
     } catch {
       // Validation failure — accept the image as-is
       bestImage = imageBuffer;

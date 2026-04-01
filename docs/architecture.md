@@ -1,6 +1,6 @@
 # Application Architecture — Illustrated Book Generator
 
-> **Decision: Gemini-only MVP.** No provider abstraction layer. See [decisions.md](./decisions.md) for all ADRs.
+> **Decision: OpenRouter-based MVP.** No provider abstraction layer. See [decisions.md](./decisions.md) for all ADRs.
 
 ## System Overview
 
@@ -12,14 +12,14 @@ graph TB
 
     CMD --> ORCH["Orchestrator<br/>(Pipeline Runner)"]
 
-    subgraph Gemini["Google Gemini 2.5 Flash<br/>(@google/generative-ai)"]
+    subgraph OpenRouter["OpenRouter API<br/>(@openrouter/sdk)"]
         direction LR
         TEXT["Text Analysis<br/>1M context"]
         IMAGE["Image Generation<br/>500/day free"]
         VISION["Vision Validation<br/>consistency check"]
     end
 
-    ORCH --> Gemini
+    ORCH --> OpenRouter
 
     subgraph Pipeline["Processing Pipeline"]
         direction TB
@@ -45,22 +45,22 @@ flowchart LR
     end
 
     subgraph Stage2["Stage 2: Analyze"]
-        RAW --> LLM1["Gemini: Analyze full text<br/>(structured output → zod)"]
+        RAW --> LLM1["OpenRouter: Analyze full text<br/>(structured output → zod)"]
         LLM1 --> BIBLE["Character Bible<br/>+ Style Guide"]
     end
 
     subgraph Stage3["Stage 3: Split"]
-        RAW --> LLM2["Gemini: Split chapters<br/>(structured output → zod)"]
+        RAW --> LLM2["OpenRouter: Split chapters<br/>(structured output → zod)"]
         LLM2 --> CHAPTERS["Chapter[]"]
     end
 
     subgraph Stage4["Stage 4: Illustrate (parallel via p-map)"]
         CHAPTERS --> PAR{{"p-map<br/>concurrency: 3"}}
         BIBLE --> PROMPT_BUILD["Build Prompt"]
-        PAR --> LLM3["Gemini: Find key scene"]
+        PAR --> LLM3["OpenRouter: Find key scene"]
         LLM3 --> PROMPT_BUILD
-        PROMPT_BUILD --> IMG_GEN["Gemini Flash Image:<br/>Generate with anchor ref"]
-        IMG_GEN --> VALIDATE["Gemini Vision:<br/>Validate consistency"]
+        PROMPT_BUILD --> IMG_GEN["OpenRouter Image:<br/>Generate with anchor ref"]
+        IMG_GEN --> VALIDATE["OpenRouter Vision:<br/>Validate consistency"]
         VALIDATE -->|Pass| OPTIMIZE["jimp: resize + compress"]
         VALIDATE -->|Fail, retry ≤ 2| PROMPT_BUILD
         OPTIMIZE --> ENRICHED["Enriched Chapter<br/>(text + base64 image)"]
@@ -74,16 +74,14 @@ flowchart LR
 
 ---
 
-## Gemini Integration (Direct, No Abstraction)
+## OpenRouter Integration (Direct, No Abstraction)
 
-Since the MVP uses Gemini exclusively, there is no provider interface. The Gemini SDK is used directly in pipeline modules.
+Since the MVP uses OpenRouter exclusively, there is no provider interface. The OpenRouter SDK is used directly in pipeline modules.
 
 ```mermaid
 classDiagram
-    class GeminiClient {
-        -genAI: GoogleGenerativeAI
-        -textModel: GenerativeModel
-        -imageModel: GenerativeModel
+    class OpenRouterClient {
+        -client: OpenRouter
         +analyzeBook(text: string): Promise~CharacterBible~
         +splitChapters(text: string): Promise~Chapter[]~
         +findKeyScene(chapter: Chapter, bible: CharacterBible): Promise~KeyScene~
@@ -99,7 +97,7 @@ classDiagram
     }
 
     class Orchestrator {
-        -gemini: GeminiClient
+        -client: OpenRouterClient
         -config: AppConfig
         +run(inputPath: string): Promise~BookResult~
     }
@@ -108,9 +106,9 @@ classDiagram
         +assemble(bible: CharacterBible, chapters: EnrichedChapter[]): string
     }
 
-    Orchestrator --> GeminiClient
+    Orchestrator --> OpenRouterClient
     Orchestrator --> Assembler
-    GeminiClient --> ValidationResult
+    OpenRouterClient --> ValidationResult
 ```
 
 ---
@@ -194,10 +192,10 @@ classDiagram
 | Component | Technology | Package | Why |
 |---|---|---|---|
 | Language | TypeScript + Node.js | `typescript` | Requirement. Strong async/parallel. |
-| AI (all operations) | Google Gemini 2.5 Flash | `@google/generative-ai` | Free. Text + image + vision in one SDK. |
+| AI (all operations) | OpenRouter (Gemini 2.5 Flash) | `@openrouter/sdk` | Unified API gateway. Text + image + vision via one SDK. |
 | CLI Framework | commander | `commander` | Industry standard. 25M+ downloads/week. |
 | CLI UX | ora + chalk | `ora`, `chalk` | Spinners & colored progress output. |
-| Schema Validation | zod | `zod` | Gemini structured output integration. |
+| Schema Validation | zod | `zod` | Structured output integration. |
 | HTML Templating | Eta | `eta` | TypeScript-native, fastest engine. |
 | Image Processing | jimp | `jimp` | Pure JS, zero native deps. |
 | Concurrency | p-map | `p-map` | Map over chapters with concurrency limit. |
@@ -215,19 +213,19 @@ classDiagram
 bookillust/
 ├── src/
 │   ├── index.ts                  # CLI entry point (commander)
-│   ├── gemini.ts                 # GeminiClient — all AI operations
+│   ├── openRouter.ts             # OpenRouterClient — all AI operations
 │   ├── pipeline/
 │   │   ├── orchestrator.ts       # Main pipeline runner
 │   │   ├── reader.ts             # Read + normalize .txt files
-│   │   ├── analyzer.ts           # Bible generation (uses gemini.ts)
-│   │   ├── splitter.ts           # Chapter splitting (uses gemini.ts)
+│   │   ├── analyzer.ts           # Bible generation (uses openRouter.ts)
+│   │   ├── splitter.ts           # Chapter splitting (uses openRouter.ts)
 │   │   ├── illustrator.ts        # Scene → prompt → image → validate
 │   │   └── assembler.ts          # Eta template → HTML bundle
 │   ├── templates/
 │   │   └── book.eta              # HTML book template
 │   ├── schemas.ts                # Zod schemas for all data models
 │   └── config.ts                 # Configuration & env vars
-├── .env.example                  # Template for GEMINI_API_KEY
+├── .env.example                  # Template for OPENROUTER_API_KEY
 ├── biome.json                    # Biome linter/formatter config
 ├── package.json
 ├── tsconfig.json
@@ -236,7 +234,7 @@ bookillust/
 
 Key differences from the original multi-provider design:
 
-- **No `providers/` directory** — Gemini is used directly via `gemini.ts`
+- **No `providers/` directory** — OpenRouter is used directly via `openRouter.ts`
 - **No interfaces** — no `TextAIProvider`, no `ImageProvider`. Direct SDK calls.
 - **`schemas.ts`** — centralized Zod schemas (was `types.ts`)
 - **`book.eta`** — Eta template (was `book.html.ejs`)
@@ -251,43 +249,43 @@ sequenceDiagram
     actor User
     participant CLI
     participant Orch as Orchestrator
-    participant Gemini as GeminiClient
+    participant Client as OpenRouterClient
     participant Assembler
 
     User->>CLI: bookillust generate --input book.txt
     CLI->>Orch: run(config)
 
-    Orch->>Gemini: analyzeBook(rawText) → CharacterBible
-    Gemini-->>Orch: bible (characters, style, settings)
+    Orch->>Client: analyzeBook(rawText) → CharacterBible
+    Client-->>Orch: bible (characters, style, settings)
 
     Note over Orch: Generate anchor images for main characters
     loop Each main character
-        Orch->>Gemini: generateImage(characterPrompt)
-        Gemini-->>Orch: anchorImage
-        Orch->>Gemini: validateImage(anchorImage, bible)
-        Gemini-->>Orch: validation result
+        Orch->>Client: generateImage(characterPrompt)
+        Client-->>Orch: anchorImage
+        Orch->>Client: validateImage(anchorImage, bible)
+        Client-->>Orch: validation result
     end
 
-    Orch->>Gemini: splitChapters(rawText)
-    Gemini-->>Orch: chapters[]
+    Orch->>Client: splitChapters(rawText)
+    Client-->>Orch: chapters[]
 
     Note over Orch: Process chapters in parallel (p-map, concurrency: 3)
     par Chapter 1
-        Orch->>Gemini: findKeyScene(ch1, bible)
-        Gemini-->>Orch: scene1
-        Orch->>Gemini: generateImage(prompt1, anchors)
-        Gemini-->>Orch: image1
-        Orch->>Gemini: validateImage(image1, bible)
-        Gemini-->>Orch: score ≥ 0.7 → accept
+        Orch->>Client: findKeyScene(ch1, bible)
+        Client-->>Orch: scene1
+        Orch->>Client: generateImage(prompt1, anchors)
+        Client-->>Orch: image1
+        Orch->>Client: validateImage(image1, bible)
+        Client-->>Orch: score ≥ 0.7 → accept
     and Chapter 2
-        Orch->>Gemini: findKeyScene(ch2, bible)
-        Gemini-->>Orch: scene2
-        Orch->>Gemini: generateImage(prompt2, anchors)
-        Gemini-->>Orch: image2
-        Orch->>Gemini: validateImage(image2, bible)
-        Gemini-->>Orch: score < 0.7 → retry
+        Orch->>Client: findKeyScene(ch2, bible)
+        Client-->>Orch: scene2
+        Orch->>Client: generateImage(prompt2, anchors)
+        Client-->>Orch: image2
+        Orch->>Client: validateImage(image2, bible)
+        Client-->>Orch: score < 0.7 → retry
     and Chapter N...
-        Note over Orch,Gemini: same flow for each chapter
+        Note over Orch,Client: same flow for each chapter
     end
 
     Orch->>Assembler: assemble(bible, enrichedChapters)
@@ -327,7 +325,7 @@ Note: `--text-provider` and `--image-provider` flags are removed from MVP. They 
 
 ```
 # .env file — only one API key needed for MVP
-GEMINI_API_KEY=              # Google AI Studio API key (free, no credit card)
+OPENROUTER_API_KEY=          # OpenRouter API key — get one at openrouter.ai/settings/keys
 
 # Optional defaults
 DEFAULT_STYLE=watercolor     # Art style preset

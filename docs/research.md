@@ -2,7 +2,7 @@
 
 > Research compiled March 2026. Free tier availability and limits may change.
 >
-> **Decision: Gemini-only for MVP.** See [decisions.md](./decisions.md) for rationale.
+> **Decision: OpenRouter for MVP.** See [decisions.md](./decisions.md) for rationale.
 
 ## Can Claude Do It All?
 
@@ -32,7 +32,7 @@ The single AI provider for the MVP, handling text analysis, image generation, an
 
 **Vision capabilities:** Can analyze generated illustrations against the character bible. Included in the same free tier. Enables the validation loop (Layer 5 of consistency strategy).
 
-**Single SDK:** `@google/generative-ai` — one npm package for all three capabilities.
+**Single SDK:** `@openrouter/sdk` — one npm package routing all three capabilities.
 
 **Limits:** ~500 requests/day. Quotas have been unstable — cut 92% in Dec 2025, restored to ~500 in Feb 2026.
 
@@ -66,24 +66,24 @@ These providers were researched but deferred to avoid premature abstraction in t
 
 ---
 
-## Why Gemini-Only for MVP
+## Why OpenRouter for MVP
 
 ```mermaid
 graph TD
-    subgraph GeminiAdvantage["Gemini: One SDK, Three Capabilities"]
-        SDK["@google/generative-ai"] --> TEXT["Text Analysis<br/>1M context, structured output"]
+    subgraph OpenRouterAdvantage["OpenRouter: One SDK, Any Model"]
+        SDK["@openrouter/sdk"] --> TEXT["Text Analysis<br/>1M context, structured output"]
         SDK --> IMAGE["Image Generation<br/>500/day free, 1024x1024"]
         SDK --> VISION["Vision Validation<br/>Compare illustration vs bible"]
     end
 
-    subgraph Alternative["Multi-Provider Alternative"]
+    subgraph Alternative["Custom Multi-Provider Alternative"]
         SDK_T["@google/generative-ai<br/>or @anthropic-ai/sdk<br/>or openai (Groq)"] --> TEXT2["Text Analysis"]
         SDK_I["fal-ai/client<br/>or replicate<br/>or @huggingface/inference"] --> IMAGE2["Image Generation"]
         SDK_V["separate vision call"] --> VISION2["Validation"]
     end
 
-    GeminiAdvantage -->|"1 dependency<br/>1 API key<br/>all free"| WIN["Simpler MVP"]
+    OpenRouterAdvantage -->|"1 dependency<br/>1 API key<br/>model-switchable"| WIN["Simpler MVP"]
     Alternative -->|"3-6 dependencies<br/>2-3 API keys<br/>mixed free/paid"| COMPLEX["More Complex"]
 ```
 
-The multi-provider approach adds value only when there's a real need for provider switching. That need will emerge in Phase 5 when premium providers are added. Building the abstraction now would be premature.
+OpenRouter normalizes the API across hundreds of models. Switching models is a one-line change. The multi-provider abstraction adds value only when there's a real need for custom provider logic — that need will emerge in Phase 5 if at all.

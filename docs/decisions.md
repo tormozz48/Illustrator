@@ -10,10 +10,10 @@
 mindmap
   root((Illustrated Book<br/>Generator))
     AI
-      Text AI: Gemini 2.5 Flash only
-      Image AI: Gemini Flash Image only
+      Text AI: Gemini 2.5 Flash via OpenRouter
+      Image AI: Gemini Flash Image via OpenRouter
       Validation: enabled by default
-      Single SDK: @google/generative-ai
+      Single SDK: @openrouter/sdk
     Toolchain
       Language: TypeScript + Node.js
       Build: tsup (esbuild)
@@ -28,30 +28,30 @@ mindmap
       CLI UX: ora + chalk
     Architecture
       No provider abstraction in MVP
-      Gemini-only, direct integration
+      OpenRouter-based, direct integration
       Validation loop enabled
       Provider abstraction deferred to Phase 5
 ```
 
 ---
 
-## ADR-001: Gemini-Only AI (No Provider Abstraction in MVP)
+## ADR-001: OpenRouter AI Client (No Provider Abstraction in MVP)
 
 **Status:** Accepted
 
 **Context:** The original design proposed a provider abstraction layer with 3 text providers (Gemini, Claude, Groq) and 3 image providers (Gemini, FLUX.2, HuggingFace) from day one. This adds significant complexity to the MVP.
 
-**Decision:** Use Google Gemini exclusively for both text and image operations in the MVP. No provider interfaces, no abstraction layer. Direct `@google/generative-ai` SDK calls.
+**Decision:** Use OpenRouter as the single AI gateway for both text and image operations in the MVP. No provider interfaces, no abstraction layer. Direct `@openrouter/sdk` calls, routing to Gemini 2.5 Flash (text) and Gemini Flash Image (images).
 
 **Consequences:**
 
-- Single SDK dependency for all AI operations (`@google/generative-ai`)
+- Single SDK dependency for all AI operations (`@openrouter/sdk`)
 - Simpler code: no interfaces, no factory pattern, no provider switching logic
 - Faster MVP delivery: estimated 1-2 weeks saved
-- Risk: if Gemini quotas are cut again, the tool stops working until quotas restore
+- Model switching is trivial — change the model constant, no code changes required
 - Provider abstraction is deferred to Phase 5 (Premium Providers) when there's a real need
 
-**Rationale:** Gemini 2.5 Flash offers 1M token context (enough for entire books), 500 free image generations/day, and multimodal capability (text + image + vision in one API). The same SDK handles everything. Building abstractions before having a second provider is premature.
+**Rationale:** OpenRouter normalizes the API across hundreds of models. Gemini 2.5 Flash offers 1M token context (enough for entire books) and multimodal capability (text + image + vision). Routing through OpenRouter means any compatible model can be swapped in with a one-line change. Building a custom abstraction layer before having a real need is premature.
 
 ---
 
@@ -59,7 +59,7 @@ mindmap
 
 **Status:** Accepted
 
-**Context:** Layer 5 of the consistency strategy uses Gemini's vision capability to score generated illustrations against the character bible and auto-retry on poor matches. This costs extra API calls (~1 per chapter, up to 3 with retries).
+**Context:** Layer 5 of the consistency strategy uses vision capability (via OpenRouter) to score generated illustrations against the character bible and auto-retry on poor matches. This costs extra API calls (~1 per chapter, up to 3 with retries).
 
 **Decision:** Validation is enabled by default. Each generated illustration is checked against the character bible. Auto-retry up to 2 times if consistency score < 0.7.
 
@@ -68,7 +68,7 @@ mindmap
 - Higher consistency quality out of the box
 - ~30-50% more API calls for image-heavy books
 - Slightly longer generation time (1 extra LLM call per chapter minimum)
-- Still within Gemini free tier for typical books (10-30 chapters = 30-90 extra calls, well under 500/day)
+- Still within free tier limits for typical books (10-30 chapters = 30-90 extra calls, well under 500/day)
 
 ---
 
@@ -190,7 +190,7 @@ mindmap
 **Consequences:**
 
 - Industry standard for TypeScript schema validation
-- First-class integration with Gemini SDK for structured outputs
+- First-class integration with OpenRouter SDK for structured outputs
 - Excellent developer experience and documentation
 - Slightly larger bundle than valibot, but irrelevant for a CLI tool
 
@@ -218,7 +218,7 @@ mindmap
 | Category | Choice | Package |
 |---|---|---|
 | Language | TypeScript + Node.js | `typescript` |
-| AI (text + image + vision) | Google Gemini 2.5 Flash | `@google/generative-ai` |
+| AI (text + image + vision) | OpenRouter (Gemini 2.5 Flash) | `@openrouter/sdk` |
 | CLI framework | commander | `commander` |
 | CLI UX | ora + chalk | `ora`, `chalk` |
 | Schema validation | zod | `zod` |
@@ -243,7 +243,7 @@ mindmap
 
 | Package | Purpose |
 |---|---|
-| `@google/generative-ai` | Gemini text, image, vision |
+| `@openrouter/sdk` | OpenRouter text, image, vision |
 | `commander` | CLI argument parsing |
 | `ora` | Terminal spinners |
 | `chalk` | Terminal colors |

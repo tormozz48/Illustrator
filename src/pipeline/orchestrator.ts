@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { GeminiClient } from '../gemini.js';
+import { OpenRouterClient } from '../openRouter.js';
 import { createSpinner, logger } from '../logger.js';
 import type { AppConfig, BookResult } from '../schemas/index.js';
 import { buildBible } from './analyzer.js';
@@ -10,7 +10,7 @@ import { extractTitle, readBook } from './reader.js';
 import { splitIntoChapters } from './splitter.js';
 
 export async function run(appConfig: AppConfig): Promise<BookResult> {
-  const gemini = new GeminiClient();
+  const client = new OpenRouterClient();
   const spinner = createSpinner();
 
   // ── Stage 1: Read ──────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
 
   // ── Stage 2: Analyze ───────────────────────────────────────────────────────
   spinner.start('Analyzing — building character & style bible...');
-  const bible = await buildBible(gemini, rawText);
+  const bible = await buildBible(client, rawText);
   spinner.succeed(
     `Bible: ${bible.characters.length} characters · ${bible.settings.length} settings · style: ${bible.styleGuide.artStyle}`
   );
@@ -43,7 +43,7 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
       const anchorPrompt = `${bible.styleGuide.stylePrefix}\n\n${char.name}: ${char.age} ${char.gender} with ${char.hairColor} ${char.hairStyle} hair, ${char.eyeColor} eyes, ${char.skinTone} skin, ${char.facialFeatures}, wearing ${char.clothing}${char.accessories.length > 0 ? `, ${char.accessories.join(', ')}` : ''}${char.distinctiveFeatures.length > 0 ? `. Distinctive: ${char.distinctiveFeatures.join(', ')}` : ''}.\n\nFull-body portrait, front-facing, neutral expression, neutral pose, plain background, character reference sheet.\n\nNegative: ${bible.styleGuide.negativePrompt}`;
 
       try {
-        const buf = await gemini.generateImage(anchorPrompt);
+        const buf = await client.generateImage(anchorPrompt);
         anchorImages.set(char.name, buf);
         logger.debug(`anchor ready: ${char.name}`);
       } catch (err) {
@@ -58,7 +58,7 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
 
   // ── Stage 3: Split ─────────────────────────────────────────────────────────
   spinner.start('Splitting into chapters...');
-  const chapters = await splitIntoChapters(gemini, rawText);
+  const chapters = await splitIntoChapters(client, rawText);
   spinner.succeed(`Chapters: ${chapters.length}`);
 
   // ── Stage 4: Illustrate ────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   );
 
   const enrichedChapters = await illustrateChapters(
-    gemini,
+    client,
     chapters,
     bible,
     anchorImages,

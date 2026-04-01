@@ -10,9 +10,9 @@ gantt
     dateFormat YYYY-MM-DD
     axisFormat %b %Y
 
-    section Phase 1: CLI MVP (Gemini-only)
+    section Phase 1: CLI MVP (OpenRouter)
     Project setup (npm, tsup, Biome)   :p1a, 2026-04-01, 2d
-    GeminiClient module                :p1b, after p1a, 3d
+    OpenRouterClient module            :p1b, after p1a, 3d
     Bible generation pipeline          :p1c, after p1b, 3d
     Chapter splitting pipeline         :p1d, after p1c, 2d
     Illustration pipeline + validation :p1e, after p1b, 6d
@@ -48,22 +48,22 @@ gantt
 
 ---
 
-## Phase 1: CLI MVP (Gemini-Only)
+## Phase 1: CLI MVP (OpenRouter)
 
-The minimum viable product: a CLI tool that takes a `.txt` file and produces an illustrated HTML book using the free Gemini API. No provider abstraction — direct Gemini SDK integration.
+The minimum viable product: a CLI tool that takes a `.txt` file and produces an illustrated HTML book via OpenRouter. No provider abstraction — direct OpenRouter SDK integration.
 
 ### Deliverables
 
 | # | Feature | Description | Priority |
 |---|---|---|---|
 | 1.1 | Project scaffolding | TypeScript, tsup, npm, commander, Biome | Must |
-| 1.2 | GeminiClient module | Single module wrapping all Gemini operations (text, image, vision) | Must |
+| 1.2 | OpenRouterClient module | Single module wrapping all AI operations via OpenRouter (text, image, vision) | Must |
 | 1.3 | Book reader (.txt) | Read and normalize text files | Must |
 | 1.4 | Bible generator | Analyze text → character sheets + style guide (zod schemas) | Must |
-| 1.5 | Chapter splitter | Detect and split chapters via Gemini | Must |
+| 1.5 | Chapter splitter | Detect and split chapters via OpenRouter | Must |
 | 1.6 | Illustrator pipeline | Key scene → prompt → image (parallel with p-map) | Must |
-| 1.7 | Consistency engine | Anchor images, prompt templates, Gemini multimodal refs | Must |
-| 1.8 | Image validation | Gemini vision validates each illustration vs bible (default ON) | Must |
+| 1.7 | Consistency engine | Anchor images, prompt templates, multimodal refs via OpenRouter | Must |
+| 1.8 | Image validation | Vision validates each illustration vs bible via OpenRouter (default ON) | Must |
 | 1.9 | HTML assembler | Eta template → self-contained HTML with ToC + base64 images | Must |
 | 1.10 | Image optimization | jimp resize/compress before embedding | Must |
 | 1.11 | CLI interface | commander-based CLI with flags and ora progress output | Must |
@@ -76,7 +76,7 @@ The minimum viable product: a CLI tool that takes a `.txt` file and produces an 
 graph LR
     TXT["book.txt"] --> CLI["CLI<br/>(commander + ora)"]
     CLI --> PIPE["Pipeline<br/>(orchestrator)"]
-    PIPE --> GEMINI["Gemini API<br/>(text + image + vision)<br/>@google/generative-ai"]
+    PIPE --> OR["OpenRouter API<br/>(text + image + vision)<br/>@openrouter/sdk"]
     PIPE --> JIMP["jimp<br/>(resize + compress)"]
     PIPE --> ETA["Eta<br/>(HTML template)"]
     ETA --> HTML["book.html"]
@@ -330,7 +330,7 @@ HF_TOKEN=                 # Hugging Face API token (free)
 
 | Phase | Optimistic | Realistic | Pessimistic |
 |---|---|---|---|
-| Phase 1: CLI MVP (Gemini-only) | 2 weeks | 4 weeks | 6 weeks |
+| Phase 1: CLI MVP (OpenRouter) | 2 weeks | 4 weeks | 6 weeks |
 | Phase 2: Static Hosting | 2 days | 4 days | 1 week |
 | Phase 3: Telegram Bot | 1 week | 2 weeks | 3 weeks |
 | Phase 4: Multi-format | 1 week | 2 weeks | 3 weeks |

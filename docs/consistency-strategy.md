@@ -1,6 +1,6 @@
 # Character Consistency Strategy
 
-> The hardest problem in the entire project. This document describes a multi-layered approach using Gemini's multimodal capabilities.
+> The hardest problem in the entire project. This document describes a multi-layered approach using multimodal AI via OpenRouter.
 >
 > **Decision: Validation enabled by default.** See [decisions.md](./decisions.md) ADR-002.
 
@@ -163,19 +163,19 @@ For each main character:
 2. Save the image buffer and the seed number (if the API returns one)
 3. For all subsequent illustrations featuring that character, pass the anchor image as a reference input
 
-With **Gemini's multimodal API**, you include the anchor image directly in the prompt context alongside the text prompt — the model "sees" the reference while generating.
+With **OpenRouter's multimodal API**, you include the anchor image directly in the prompt context alongside the text prompt — the model "sees" the reference while generating.
 
 ---
 
 ## Layer 4: Seed Consistency
 
-Gemini Flash Image does not currently expose seed control. However, Gemini's multimodal API allows passing anchor images directly in the prompt context — the model "sees" the reference alongside the text prompt, which serves a similar stabilizing purpose.
+The image model does not currently expose seed control. However, OpenRouter's multimodal API allows passing anchor images directly in the prompt context — the model "sees" the reference alongside the text prompt, which serves a similar stabilizing purpose.
 
 If provider abstraction is added in Phase 5, seed reuse can be enabled for FLUX.2 and Stable Diffusion APIs which do support it.
 
 ```typescript
-// Gemini: pass anchor image in multimodal prompt
-const result = await gemini.generateImage(chapterPrompt, [anchorImage]);
+// Pass anchor image in multimodal prompt via OpenRouter
+const result = await client.generateImage(chapterPrompt, [anchorImage]);
 // The model uses the anchor as visual context for consistency
 ```
 
@@ -183,7 +183,7 @@ const result = await gemini.generateImage(chapterPrompt, [anchorImage]);
 
 ## Layer 5: Post-processing Validation
 
-**Enabled by default** (ADR-002). Uses Gemini's vision capability to evaluate generated illustrations against the character bible. Free — vision is included in the same Gemini API and SDK.
+**Enabled by default** (ADR-002). Uses vision capability via OpenRouter to evaluate generated illustrations against the character bible.
 
 ```mermaid
 flowchart TD
@@ -249,9 +249,9 @@ flowchart TD
 | Technique | Consistency Improvement | Cost | Complexity |
 |---|---|---|---|
 | Character bible + locked prompts | +40% baseline | Free | Low |
-| Gemini multimodal anchor refs | +20% additional | Free | Medium |
-| LLM validation + retry (default ON) | +5-10% additional | Free (Gemini vision) | Medium |
+| OpenRouter multimodal anchor refs | +20% additional | Free | Medium |
+| LLM validation + retry (default ON) | +5-10% additional | Free | Medium |
 | **Combined MVP approach** | **~80-90%** | **Free** | **Medium** |
 | LoRA fine-tuning (Phase 5: FLUX.2) | ~95-98% | Paid | High |
 
-The Gemini-only approach delivers good results for storytelling purposes. Readers will recognize characters across chapters. For commercial-grade children's books or graphic novels, the FLUX.2 + LoRA path (Phase 5) is worth the investment.
+The OpenRouter-based approach delivers good results for storytelling purposes. Readers will recognize characters across chapters. For commercial-grade children's books or graphic novels, the FLUX.2 + LoRA path (Phase 5) is worth the investment.

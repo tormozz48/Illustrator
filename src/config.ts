@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { logger } from './logger.js';
 
 const EnvSchema = z.object({
-  GEMINI_API_KEY: z
+  OPENROUTER_API_KEY: z
     .string()
-    .min(1, 'GEMINI_API_KEY is required. Get one at https://aistudio.google.com/apikey'),
+    .min(1, 'OPENROUTER_API_KEY is required. Get one at https://openrouter.ai/settings/keys'),
   DEFAULT_STYLE: z.enum(['watercolor', 'comic', 'realistic', 'anime']).default('watercolor'),
   DEFAULT_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
 });
