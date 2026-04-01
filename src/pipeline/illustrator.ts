@@ -39,6 +39,32 @@ export async function illustrateChapters({
   );
 }
 
+function buildEntityDescription(entity: CharacterBible['entities'][number]): string {
+  const { name, visualDescription, physicalTraits, distinctiveFeatures, category } = entity;
+
+  // For characters enrich the prose description with structured traits when available
+  let desc = `${name}: ${visualDescription}`;
+  if (category === 'character' && physicalTraits) {
+    const inline = [
+      physicalTraits.age,
+      physicalTraits.gender,
+      physicalTraits.hairColor && `${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ''}`.trim() + ' hair',
+      physicalTraits.eyeColor && `${physicalTraits.eyeColor} eyes`,
+      physicalTraits.skinTone && `${physicalTraits.skinTone} skin`,
+      physicalTraits.facialFeatures,
+      physicalTraits.clothing && `wearing ${physicalTraits.clothing}`,
+      physicalTraits.accessories?.length ? physicalTraits.accessories.join(', ') : undefined,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    if (inline) desc += ` — ${inline}`;
+  }
+  if (distinctiveFeatures.length > 0) {
+    desc += `. Distinctive: ${distinctiveFeatures.join(', ')}`;
+  }
+  return desc;
+}
+
 function buildImagePrompt({
   scene,
   bible,
@@ -48,26 +74,25 @@ function buildImagePrompt({
   bible: CharacterBible;
   suggestions?: string[];
 }): string {
-  const { styleGuide, characters, settings } = bible;
+  const { styleGuide, entities, environments } = bible;
 
-  const presentChars = characters.filter((c) => scene.characters.includes(c.name));
-  const charDescs = presentChars
-    .map(
-      (c) =>
-        `${c.name}: ${c.age} ${c.gender} with ${c.hairColor} ${c.hairStyle} hair, ${c.eyeColor} eyes, ${c.skinTone} skin, ${c.facialFeatures}, wearing ${c.clothing}${c.accessories.length > 0 ? `, ${c.accessories.join(', ')}` : ''}${c.distinctiveFeatures.length > 0 ? `. Distinctive: ${c.distinctiveFeatures.join(', ')}` : ''}`
-    )
-    .join('\n');
+  // Resolve entity descriptions for all entities present in this scene
+  const presentEntities = entities.filter((e) => scene.entities.includes(e.name));
+  const entityDescs = presentEntities.map(buildEntityDescription).join('\n');
 
-  const setting = settings.find((s) => s.name === scene.setting);
-  const settingDesc = setting ? setting.visualDescription : scene.setting;
+  // Resolve environment visual description
+  const environment = environments.find((env) => env.name === scene.setting);
+  const settingDesc = environment
+    ? `${environment.visualDescription} Atmosphere: ${environment.atmosphere}. ${environment.recurringElements.length > 0 ? `Always present: ${environment.recurringElements.join(', ')}.` : ''}`
+    : scene.setting;
 
   const parts = [
     styleGuide.stylePrefix,
-    charDescs,
+    entityDescs || undefined,
     scene.description,
     `Setting: ${settingDesc}`,
     `Mood: ${scene.mood}`,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
 
   if (suggestions.length > 0) {
     parts.push(`IMPORTANT corrections for this attempt: ${suggestions.join('; ')}`);
@@ -109,7 +134,8 @@ async function illustrateChapter({
 }): Promise<EnrichedChapter> {
   const keyScene = await client.findKeyScene(chapter, bible);
 
-  const refs = keyScene.characters
+  // Collect anchor images for all entities present in this scene
+  const refs = keyScene.entities
     .map((name) => anchorImages.get(name))
     .filter((buf): buf is Buffer => buf !== undefined);
 

@@ -1,31 +1,45 @@
-import type { CharacterBible, RawChapter } from "../schemas/index.js";
+import type { CharacterBible, RawChapter } from '../schemas/index.js';
+
+const APPROACH_HINTS: Record<string, string> = {
+  'narrative-scene': 'Capture a story moment — show entities interacting with each other or their environment.',
+  'descriptive':     'Showcase a key subject in full visual detail within its environment.',
+  'diagrammatic':    'Depict a procedure, process, or technique in a clear, instructional composition.',
+  'abstract':        'Evoke the mood, theme, or central concept of the chapter rather than a literal event.',
+  'portrait':        'Present the primary subject close-up with maximum detail.',
+};
 
 export function findKeyScenePrompt(
   chapter: RawChapter,
   bible: CharacterBible
 ): string {
-  const characterNames = bible.characters.map((c) => c.name).join(", ");
-  const settingNames = bible.settings.map((s) => s.name).join(", ");
+  const entityNames = bible.entities.map((e) => e.name).join(', ');
+  const environmentNames = bible.environments.map((e) => e.name).join(', ');
+  const approachHint = APPROACH_HINTS[bible.classification.illustrationApproach] ?? '';
 
   return `Identify the single most visually compelling scene from this chapter for an illustration.
 
 Return a JSON object with this EXACT structure:
 {
   "description": "string (detailed visual description of the scene — what is VISIBLE, 2-4 sentences)",
-  "characters": ["string (exact character names present in this scene)"],
+  "entities": ["string (exact names of entities present and visible in this scene)"],
   "setting": "string (location name)",
   "mood": "string (emotional atmosphere: 'tense', 'joyful', 'mysterious', etc.)",
   "insertAfterParagraph": 0
 }
 
-Known characters (use exact names): ${characterNames}
-Known settings (use exact names if applicable): ${settingNames}
+Known entities (use exact names): ${entityNames}
+Known environments (use exact names if applicable): ${environmentNames}
+
+Illustration approach for this book: ${bible.classification.illustrationApproach}
+${approachHint}
 
 Instructions:
-1. Choose the scene with the most visual drama, emotion, or story significance
-2. Only list characters actually present and visible in this specific scene
-3. insertAfterParagraph: 0-indexed paragraph number after which the image appears (0 = before first paragraph)
-4. description: focus on VISIBLE elements — actions, poses, expressions, environment, light
+1. Choose the scene with the most visual drama, emotion, or story significance.
+2. Only list entities that are actually present and visible in this specific scene.
+3. insertAfterParagraph: 0-indexed paragraph number after which the image appears (0 = before first paragraph).
+4. description: focus on VISIBLE elements only — actions, poses, expressions, environment, light, textures, colours. Write the description in English regardless of the source text language — this will be used as an image generation prompt.
+5. If the chapter has no literal scene (e.g. pure exposition, abstract poetry), describe the dominant visual concept or mood instead.
+6. Keep entity and setting names in their original language in the "entities" and "setting" fields.
 
 Chapter ${chapter.number}: ${chapter.title}
 ${chapter.content}`;

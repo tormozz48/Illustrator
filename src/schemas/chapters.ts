@@ -14,7 +14,8 @@ export type SplitResult = z.infer<typeof SplitResultSchema>;
 
 export const KeySceneSchema = z.object({
   description: z.string(),
-  characters: z.array(z.string()),
+  /** Entity names (characters, creatures, objects, etc.) present in this scene. */
+  entities: z.array(z.string()),
   setting: z.string(),
   mood: z.string(),
   insertAfterParagraph: z.number().int().nonnegative(),
