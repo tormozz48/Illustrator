@@ -39,6 +39,7 @@ npm run clean      # rm -rf output/
 - Unused variables are errors, not warnings
 - Import types with `import type` where possible
 - In every `.ts` file, place exported functions before non-exported (private) functions
+- Functions that accept more than 2 arguments must use an options object instead of positional parameters. This applies to exported and non-exported functions alike.
 
 ## Project Structure
 

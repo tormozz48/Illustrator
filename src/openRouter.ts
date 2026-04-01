@@ -27,15 +27,15 @@ export class OpenRouterClient {
 
   async analyzeBook(text: string): Promise<CharacterBible> {
     const prompt = analyzeBookPrompt(text);
-    const text_ = await this.generateText(prompt);
-    const json = JSON.parse(text_) as unknown;
+    const response = await this.generateText(prompt);
+    const json = JSON.parse(response) as unknown;
     return CharacterBibleSchema.parse(json);
   }
 
   async splitChapters(text: string): Promise<RawChapter[]> {
     const prompt = splitChaptersPrompt(text);
-    const text_ = await this.generateText(prompt);
-    const json = JSON.parse(text_) as unknown;
+    const response = await this.generateText(prompt);
+    const json = JSON.parse(response) as unknown;
     const parsed = SplitResultSchema.parse(json);
     return parsed.chapters;
   }
@@ -45,8 +45,8 @@ export class OpenRouterClient {
     bible: CharacterBible
   ): Promise<KeyScene> {
     const prompt = findKeyScenePrompt(chapter, bible);
-    const text_ = await this.generateText(prompt);
-    const json = JSON.parse(text_) as unknown;
+    const response = await this.generateText(prompt);
+    const json = JSON.parse(response) as unknown;
     return KeySceneSchema.parse(json);
   }
 

@@ -66,23 +66,23 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
     `Illustrating ${chapters.length} chapters (concurrency: ${appConfig.concurrency})...`
   );
 
-  const enrichedChapters = await illustrateChapters(
+  const enrichedChapters = await illustrateChapters({
     client,
     chapters,
     bible,
     anchorImages,
-    appConfig.concurrency,
-    (done, total) => {
+    concurrency: appConfig.concurrency,
+    onProgress: (done, total) => {
       logger.debug(`Progress: ${done}/${total} chapters illustrated`);
-    }
-  );
+    },
+  });
 
   const illustrated = enrichedChapters.filter((c) => c.illustration !== undefined).length;
   logger.info(`Illustrated ${illustrated}/${chapters.length} chapters`);
 
   // ── Stage 5: Assemble ──────────────────────────────────────────────────────
   spinner.start('Assembling HTML book...');
-  const html = await assemble(title, undefined, bible, enrichedChapters);
+  const html = await assemble({ title, author: undefined, bible, chapters: enrichedChapters });
   spinner.succeed('HTML assembled');
 
   // ── Write output ───────────────────────────────────────────────────────────

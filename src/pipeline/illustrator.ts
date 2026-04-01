@@ -9,21 +9,28 @@ const PASS_THRESHOLD = 0.7;
 const OUTPUT_WIDTH = 800;
 const JPEG_QUALITY = 85;
 
-export async function illustrateChapters(
-  client: OpenRouterClient,
-  chapters: RawChapter[],
-  bible: CharacterBible,
-  anchorImages: Map<string, Buffer>,
-  concurrency: number,
-  onProgress?: (completed: number, total: number) => void
-): Promise<EnrichedChapter[]> {
+export async function illustrateChapters({
+  client,
+  chapters,
+  bible,
+  anchorImages,
+  concurrency,
+  onProgress,
+}: {
+  client: OpenRouterClient;
+  chapters: RawChapter[];
+  bible: CharacterBible;
+  anchorImages: Map<string, Buffer>;
+  concurrency: number;
+  onProgress?: (completed: number, total: number) => void;
+}): Promise<EnrichedChapter[]> {
   let completed = 0;
   const total = chapters.length;
 
   return pMap(
     chapters,
     async (chapter) => {
-      const result = await illustrateChapter(client, chapter, bible, anchorImages);
+      const result = await illustrateChapter({ client, chapter, bible, anchorImages });
       completed++;
       onProgress?.(completed, total);
       return result;
@@ -32,11 +39,15 @@ export async function illustrateChapters(
   );
 }
 
-function buildImagePrompt(
-  scene: KeyScene,
-  bible: CharacterBible,
-  suggestions: string[] = []
-): string {
+function buildImagePrompt({
+  scene,
+  bible,
+  suggestions = [],
+}: {
+  scene: KeyScene;
+  bible: CharacterBible;
+  suggestions?: string[];
+}): string {
   const { styleGuide, characters, settings } = bible;
 
   const presentChars = characters.filter((c) => scene.characters.includes(c.name));
@@ -85,12 +96,17 @@ async function optimizeImage(
   };
 }
 
-async function illustrateChapter(
-  client: OpenRouterClient,
-  chapter: RawChapter,
-  bible: CharacterBible,
-  anchorImages: Map<string, Buffer>
-): Promise<EnrichedChapter> {
+async function illustrateChapter({
+  client,
+  chapter,
+  bible,
+  anchorImages,
+}: {
+  client: OpenRouterClient;
+  chapter: RawChapter;
+  bible: CharacterBible;
+  anchorImages: Map<string, Buffer>;
+}): Promise<EnrichedChapter> {
   const keyScene = await client.findKeyScene(chapter, bible);
 
   const refs = keyScene.characters
@@ -102,7 +118,7 @@ async function illustrateChapter(
   let suggestions: string[] = [];
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const prompt = buildImagePrompt(keyScene, bible, attempt > 0 ? suggestions : []);
+    const prompt = buildImagePrompt({ scene: keyScene, bible, suggestions: attempt > 0 ? suggestions : [] });
 
     logger.debug(`ch${chapter.number} attempt ${attempt + 1}/${MAX_RETRIES + 1}`);
 
@@ -147,7 +163,7 @@ async function illustrateChapter(
       keyScene,
       illustration: {
         imageBase64: optimized.base64,
-        prompt: buildImagePrompt(keyScene, bible),
+        prompt: buildImagePrompt({ scene: keyScene, bible }),
         width: optimized.width,
         height: optimized.height,
         validationScore: bestScore,

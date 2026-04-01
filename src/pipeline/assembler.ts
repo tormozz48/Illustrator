@@ -5,12 +5,17 @@ import type { CharacterBible, EnrichedChapter } from '../schemas/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export async function assemble(
-  title: string,
-  author: string | undefined,
-  bible: CharacterBible,
-  chapters: EnrichedChapter[]
-): Promise<string> {
+export async function assemble({
+  title,
+  author,
+  bible,
+  chapters,
+}: {
+  title: string;
+  author: string | undefined;
+  bible: CharacterBible;
+  chapters: EnrichedChapter[];
+}): Promise<string> {
   const eta = new Eta({
     views: join(__dirname, '../templates'),
     cache: false,
