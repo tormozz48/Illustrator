@@ -63,6 +63,20 @@ story.txt           # Sample input for testing
 output/             # Generated books (gitignored)
 ```
 
+## Comments
+
+Only write comments that explain **why** — non-obvious decisions, constraints, or trade-offs. Never write comments that describe **what** the code does (the code already says that). Only comment tricky places where the reasoning isn't obvious from reading the code.
+
+Examples of acceptable comments:
+- Why a retry has no backoff (Gemini is non-deterministic, plain retry works)
+- Why two calls run in parallel (they're independent, saves wall-clock time)
+- Why a guard exists for a guaranteed condition (TypeScript strict-mode narrowing limitation)
+
+Examples of comments to avoid:
+- `// Strip markdown code fences` (the regex shows this)
+- `// Resolve entity descriptions` (the filter/map shows this)
+- Section headers like `// ── Stage 1: Read ──`
+
 ## Gotchas
 
 - Output directory and `dist/` are gitignored; don't commit generated artifacts.

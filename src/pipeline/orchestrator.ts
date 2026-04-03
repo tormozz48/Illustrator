@@ -10,7 +10,6 @@ import { illustrateChapters } from "./illustrator.js";
 import { extractTitle, readBook } from "./reader.js";
 import { splitIntoChapters } from "./splitter.js";
 
-/** Build an anchor image prompt for any entity type. */
 function buildAnchorPrompt({
   entity,
   stylePrefix,
@@ -28,7 +27,6 @@ function buildAnchorPrompt({
     physicalTraits,
   } = entity;
 
-  // For characters, enrich with structured physical traits when available
   let subjectLine = `${name}: ${visualDescription}`;
   if (category === "character" && physicalTraits) {
     const details = [
@@ -53,7 +51,6 @@ function buildAnchorPrompt({
     subjectLine += `. Distinctive: ${distinctiveFeatures.join(", ")}`;
   }
 
-  // Compose type-appropriate reference sheet instruction
   const refInstruction =
     category === "character"
       ? "Full-body portrait, front-facing, neutral expression, neutral pose, plain background, character reference sheet."
@@ -73,7 +70,6 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   const client = new GeminiClient();
   const spinner = createSpinner();
 
-  // ── Stage 1: Read ──────────────────────────────────────────────────────────
   spinner.start("Reading book...");
   const rawText = await readBook(appConfig.inputPath);
   const title = extractTitle(rawText, basename(appConfig.inputPath));
@@ -81,7 +77,6 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
     `Loaded: "${title}" (${rawText.length.toLocaleString()} chars)`
   );
 
-  // ── Stage 2: Analyze + Split (parallel) ───────────────────────────────────
   // Both calls are independent — they both read rawText and produce separate
   // outputs.  Running them with Promise.all() saves the full wall-clock duration
   // of whichever finishes first (typically splitChapters, which is now fast
@@ -104,7 +99,6 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
     );
   }
 
-  // ── Stage 2b: Anchor images ────────────────────────────────────────────────
   // Generate reference images for primary entities so later scene illustrations
   // can use them as visual anchors for consistency.
   // Use p-map with concurrency 2 so multiple anchors generate in parallel without
@@ -146,7 +140,6 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
     );
   }
 
-  // ── Stage 3: Illustrate ────────────────────────────────────────────────────
   logger.info(
     `Illustrating ${chapters.length} chapters (concurrency: ${appConfig.concurrency})...`
   );
@@ -167,7 +160,6 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   ).length;
   logger.info(`Illustrated ${illustrated}/${chapters.length} chapters`);
 
-  // ── Stage 4: Assemble ──────────────────────────────────────────────────────
   spinner.start("Assembling HTML book...");
   const html = await assemble({
     title,
@@ -177,7 +169,6 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   });
   spinner.succeed("HTML assembled");
 
-  // ── Write output ───────────────────────────────────────────────────────────
   await mkdir(appConfig.outputDir, { recursive: true });
   const outputPath = join(appConfig.outputDir, "book.html");
   await writeFile(outputPath, html, "utf-8");

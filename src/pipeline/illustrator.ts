@@ -60,7 +60,6 @@ function buildEntityDescription(
     category,
   } = entity;
 
-  // For characters enrich the prose description with structured traits when available
   let desc = `${name}: ${visualDescription}`;
   if (category === "character" && physicalTraits) {
     const inline = [
@@ -98,13 +97,11 @@ function buildImagePrompt({
 }): string {
   const { styleGuide, entities, environments } = bible;
 
-  // Resolve entity descriptions for all entities present in this scene
   const presentEntities = entities.filter((e) =>
     scene.entities.includes(e.name)
   );
   const entityDescs = presentEntities.map(buildEntityDescription).join("\n");
 
-  // Resolve environment visual description
   const environment = environments.find((env) => env.name === scene.setting);
   const settingDesc = environment
     ? `${environment.visualDescription} Atmosphere: ${environment.atmosphere}. ${environment.recurringElements.length > 0 ? `Always present: ${environment.recurringElements.join(", ")}.` : ""}`
@@ -162,7 +159,6 @@ async function illustrateChapter({
 }): Promise<EnrichedChapter> {
   const keyScene = await client.findKeyScene(chapter, bible);
 
-  // Collect anchor images for all entities present in this scene
   const refs = keyScene.entities
     .map((name) => anchorImages.get(name))
     .filter((buf): buf is Buffer => buf !== undefined);

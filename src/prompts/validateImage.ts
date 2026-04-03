@@ -1,11 +1,9 @@
 import type { CharacterBible } from '../schemas/index.js';
 
 export function validateImagePrompt(bible: CharacterBible): string {
-  // Only include primary and secondary entities — backgrounds aren't illustrated directly
   const entityDescriptions = bible.entities
     .filter((e) => e.importance !== 'background')
     .map((e) => {
-      // For characters, append structured traits as a compact inline summary
       const traitSummary =
         e.physicalTraits && e.category === 'character'
           ? ` [${[

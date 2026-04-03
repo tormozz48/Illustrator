@@ -1,24 +1,21 @@
 import { z } from 'zod';
 
-// ── Entity categories ──────────────────────────────────────────────────────────
-// Covers the full range of book types: fiction, nature, cookbooks, history, etc.
 export const EntityCategorySchema = z.enum([
-  'character',  // people — fiction, biography, memoir
-  'creature',   // animals, monsters, fantasy beings, nature subjects
-  'object',     // artifacts, tools, magic items, key props
-  'vehicle',    // ships, spacecraft, carriages, cars
-  'building',   // landmarks, structures, architecture
-  'organism',   // plants, fungi, biological subjects
-  'food',       // dishes, ingredients — cookbooks, culinary writing
-  'symbol',     // emblems, abstract icons, philosophical concepts
-  'other',      // catch-all
+  'character',
+  'creature',
+  'object',
+  'vehicle',
+  'building',
+  'organism',
+  'food',
+  'symbol',
+  'other',
 ]);
 export type EntityCategory = z.infer<typeof EntityCategorySchema>;
 
 export const EntityImportanceSchema = z.enum(['primary', 'secondary', 'background']);
 export type EntityImportance = z.infer<typeof EntityImportanceSchema>;
 
-// ── Physical traits — only populated when category === 'character' ─────────────
 export const PhysicalTraitsSchema = z.object({
   age: z.string().optional(),
   gender: z.string().optional(),
@@ -39,16 +36,12 @@ export const VisualEntitySchema = z.object({
   name: z.string(),
   category: EntityCategorySchema,
   importance: EntityImportanceSchema,
-  /** Rich prose visual description (2-4 sentences). Used directly in image prompts. */
   visualDescription: z.string(),
-  /** Immediately recognisable traits: scars, patterns, colours, always-carried items. */
   distinctiveFeatures: z.array(z.string()),
-  /** Structured character traits — omit entirely for non-character categories. */
   physicalTraits: PhysicalTraitsSchema.optional(),
 });
 export type VisualEntity = z.infer<typeof VisualEntitySchema>;
 
-// ── Style guide ────────────────────────────────────────────────────────────────
 export const StyleGuideSchema = z.object({
   artStyle: z.string(),
   colorPalette: z.string(),
@@ -64,11 +57,8 @@ export type StyleGuide = z.infer<typeof StyleGuideSchema>;
 export const EnvironmentSchema = z.object({
   name: z.string(),
   visualDescription: z.string(),
-  /** Overall feel: 'oppressive and misty', 'warm and inviting', etc. */
   atmosphere: z.string(),
-  /** Dominant colour tones: 'deep greens and shadow', 'warm amber', etc. */
   colorDominance: z.string(),
-  /** Visual elements that recur whenever this environment appears. */
   recurringElements: z.array(z.string()),
 });
 export type Environment = z.infer<typeof EnvironmentSchema>;
@@ -87,16 +77,15 @@ export const BookClassificationSchema = z.object({
     'procedures',
   ]),
   illustrationApproach: z.enum([
-    'narrative-scene', // story moment with entities interacting
-    'descriptive',     // showcasing a subject (animal, dish, object)
-    'diagrammatic',    // instructional / step-by-step
-    'abstract',        // mood, theme, concept-driven
-    'portrait',        // focused close-up on a single subject
+    'narrative-scene',
+    'descriptive',
+    'diagrammatic',
+    'abstract',
+    'portrait',
   ]),
 });
 export type BookClassification = z.infer<typeof BookClassificationSchema>;
 
-// ── Visual Bible — the unified schema ─────────────────────────────────────────
 export const VisualBibleSchema = z.object({
   classification: BookClassificationSchema,
   entities: z.array(VisualEntitySchema),

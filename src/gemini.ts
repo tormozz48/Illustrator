@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { config } from "./config.js";
+import { logger } from "./logger.js";
 import { analyzeBookPrompt } from "./prompts/analyzeBook.js";
 import { findKeyScenePrompt } from "./prompts/findKeyScene.js";
 import { splitChaptersPrompt } from "./prompts/splitChapters.js";
@@ -10,10 +11,13 @@ import {
   type KeyScene,
   KeySceneSchema,
   type RawChapter,
-  SplitResultSchema,
   type ValidationResult,
   ValidationResultSchema,
 } from "./schemas/index.js";
+import { ChapterBoundaryResultSchema } from "./schemas/chapters.js";
+import { callWithJsonRetry } from "./utils/llmRetry.js";
+import { estimateTruncationRisk } from "./utils/truncationGuard.js";
+import { sliceChapters } from "./utils/sliceChapters.js";
 
 const TEXT_MODEL = "gemini-2.5-flash";
 const IMAGE_MODEL = "gemini-2.5-flash-image";
@@ -26,46 +30,63 @@ export class GeminiClient {
   }
 
   async analyzeBook(text: string): Promise<CharacterBible> {
-    const prompt = analyzeBookPrompt(text);
+    const risk = estimateTruncationRisk({ inputChars: text.length, expectedOutputSchema: 'bible' });
+    if (risk !== 'low') {
+      logger.warn(`analyzeBook: truncation risk is "${risk}" (input ${text.length.toLocaleString()} chars)`);
+    }
 
-    const result = await this.genAI.models.generateContent({
-      model: TEXT_MODEL,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { responseMimeType: "application/json" },
+    return callWithJsonRetry({
+      call: async () => {
+        const result = await this.genAI.models.generateContent({
+          model: TEXT_MODEL,
+          contents: [{ role: "user", parts: [{ text: analyzeBookPrompt(text) }] }],
+          config: { responseMimeType: "application/json" },
+        });
+        return result.text;
+      },
+      schema: CharacterBibleSchema,
+      label: "analyzeBook",
     });
-
-    const json = JSON.parse(result.text ?? "") as unknown;
-    return CharacterBibleSchema.parse(json);
   }
 
   async splitChapters(text: string): Promise<RawChapter[]> {
-    const prompt = splitChaptersPrompt(text);
+    const risk = estimateTruncationRisk({ inputChars: text.length, expectedOutputSchema: 'chapters' });
+    if (risk !== 'low') {
+      logger.warn(`splitChapters: truncation risk is "${risk}" (input ${text.length.toLocaleString()} chars) — using boundary markers`);
+    }
 
-    const result = await this.genAI.models.generateContent({
-      model: TEXT_MODEL,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { responseMimeType: "application/json" },
+    const boundaries = await callWithJsonRetry({
+      call: async () => {
+        const result = await this.genAI.models.generateContent({
+          model: TEXT_MODEL,
+          contents: [{ role: "user", parts: [{ text: splitChaptersPrompt(text) }] }],
+          config: { responseMimeType: "application/json" },
+        });
+        return result.text;
+      },
+      schema: ChapterBoundaryResultSchema,
+      label: "splitChapters",
     });
 
-    const json = JSON.parse(result.text ?? "") as unknown;
-    const parsed = SplitResultSchema.parse(json);
-    return parsed.chapters;
+    return sliceChapters(text, boundaries.chapters);
   }
 
   async findKeyScene(
     chapter: RawChapter,
     bible: CharacterBible
   ): Promise<KeyScene> {
-    const prompt = findKeyScenePrompt(chapter, bible);
-
-    const result = await this.genAI.models.generateContent({
-      model: TEXT_MODEL,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { responseMimeType: "application/json" },
+    return callWithJsonRetry({
+      call: async () => {
+        const result = await this.genAI.models.generateContent({
+          model: TEXT_MODEL,
+          contents: [{ role: "user", parts: [{ text: findKeyScenePrompt(chapter, bible) }] }],
+          config: { responseMimeType: "application/json" },
+        });
+        return result.text;
+      },
+      schema: KeySceneSchema,
+      label: `findKeyScene(ch${chapter.number})`,
     });
-
-    const json = JSON.parse(result.text ?? "") as unknown;
-    return KeySceneSchema.parse(json);
   }
 
   async generateImage(prompt: string, refs: Buffer[] = []): Promise<Buffer> {
@@ -110,28 +131,30 @@ export class GeminiClient {
     image: Buffer,
     bible: CharacterBible
   ): Promise<ValidationResult> {
-    const prompt = validateImagePrompt(bible);
-
-    const result = await this.genAI.models.generateContent({
-      model: TEXT_MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [
+    return callWithJsonRetry({
+      call: async () => {
+        const result = await this.genAI.models.generateContent({
+          model: TEXT_MODEL,
+          contents: [
             {
-              inlineData: {
-                mimeType: "image/png",
-                data: image.toString("base64"),
-              },
+              role: "user",
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: "image/png",
+                    data: image.toString("base64"),
+                  },
+                },
+                { text: validateImagePrompt(bible) },
+              ],
             },
-            { text: prompt },
           ],
-        },
-      ],
-      config: { responseMimeType: "application/json" },
+          config: { responseMimeType: "application/json" },
+        });
+        return result.text;
+      },
+      schema: ValidationResultSchema,
+      label: "validateImage",
     });
-
-    const json = JSON.parse(result.text ?? "") as unknown;
-    return ValidationResultSchema.parse(json);
   }
 }
