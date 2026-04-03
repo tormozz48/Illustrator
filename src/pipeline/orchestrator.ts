@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import pMap from "p-map";
 import { GeminiClient } from "../gemini.js";
 import { createSpinner, logger } from "../logger.js";
 import type { AppConfig, BookResult } from "../schemas/index.js";
@@ -80,12 +81,22 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
     `Loaded: "${title}" (${rawText.length.toLocaleString()} chars)`
   );
 
-  // ── Stage 2: Analyze ───────────────────────────────────────────────────────
-  spinner.start("Analyzing — building visual bible...");
-  const bible = await buildBible(client, rawText);
+  // ── Stage 2: Analyze + Split (parallel) ───────────────────────────────────
+  // Both calls are independent — they both read rawText and produce separate
+  // outputs.  Running them with Promise.all() saves the full wall-clock duration
+  // of whichever finishes first (typically splitChapters, which is now fast
+  // because it only returns boundary markers).
+  spinner.start("Building visual bible & splitting chapters (parallel)...");
+
+  const [bible, chapters] = await Promise.all([
+    buildBible(client, rawText),
+    splitIntoChapters(client, rawText),
+  ]);
+
   spinner.succeed(
     `Bible: ${bible.entities.length} entities · ${bible.environments.length} environments · style: ${bible.styleGuide.artStyle} · approach: ${bible.classification.illustrationApproach}`
   );
+  logger.info(`Chapters: ${chapters.length}`);
 
   for (const entity of bible.entities) {
     logger.debug(
@@ -96,6 +107,8 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   // ── Stage 2b: Anchor images ────────────────────────────────────────────────
   // Generate reference images for primary entities so later scene illustrations
   // can use them as visual anchors for consistency.
+  // Use p-map with concurrency 2 so multiple anchors generate in parallel without
+  // hammering the image API.
   const anchorImages = new Map<string, Buffer>();
   const primaryEntities = bible.entities.filter(
     (e) => e.importance === "primary"
@@ -106,35 +119,34 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
       `Generating anchor images for ${primaryEntities.length} primary entity/entities...`
     );
 
-    for (const entity of primaryEntities) {
-      const anchorPrompt = buildAnchorPrompt({
-        entity,
-        stylePrefix: bible.styleGuide.stylePrefix,
-        negativePrompt: bible.styleGuide.negativePrompt,
-      });
+    await pMap(
+      primaryEntities,
+      async (entity) => {
+        const anchorPrompt = buildAnchorPrompt({
+          entity,
+          stylePrefix: bible.styleGuide.stylePrefix,
+          negativePrompt: bible.styleGuide.negativePrompt,
+        });
 
-      try {
-        const buf = await client.generateImage(anchorPrompt);
-        anchorImages.set(entity.name, buf);
-        logger.debug(`anchor ready: ${entity.name} (${entity.category})`);
-      } catch (err) {
-        spinner.warn(
-          `Anchor skipped for ${entity.name}: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
-    }
+        try {
+          const buf = await client.generateImage(anchorPrompt);
+          anchorImages.set(entity.name, buf);
+          logger.debug(`anchor ready: ${entity.name} (${entity.category})`);
+        } catch (err) {
+          spinner.warn(
+            `Anchor skipped for ${entity.name}: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      },
+      { concurrency: 2 }
+    );
 
     spinner.succeed(
       `Anchors: ${anchorImages.size}/${primaryEntities.length} generated`
     );
   }
 
-  // ── Stage 3: Split ─────────────────────────────────────────────────────────
-  spinner.start("Splitting into chapters...");
-  const chapters = await splitIntoChapters(client, rawText);
-  spinner.succeed(`Chapters: ${chapters.length}`);
-
-  // ── Stage 4: Illustrate ────────────────────────────────────────────────────
+  // ── Stage 3: Illustrate ────────────────────────────────────────────────────
   logger.info(
     `Illustrating ${chapters.length} chapters (concurrency: ${appConfig.concurrency})...`
   );
@@ -155,7 +167,7 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   ).length;
   logger.info(`Illustrated ${illustrated}/${chapters.length} chapters`);
 
-  // ── Stage 5: Assemble ──────────────────────────────────────────────────────
+  // ── Stage 4: Assemble ──────────────────────────────────────────────────────
   spinner.start("Assembling HTML book...");
   const html = await assemble({
     title,
