@@ -1,38 +1,29 @@
 {
-  "name": "bookillust",
+  "name": "illustrator-saas",
   "version": "0.1.0",
-  "description": "CLI tool that transforms text books into AI-illustrated HTML books using Gemini",
-  "type": "module",
-  "bin": {
-    "bookillust": "./dist/index.js"
-  },
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "build": "tsup src/index.ts --format esm --dts",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf output"
-  },
-  "dependencies": {
-    "@google/genai": "^1.48.0",
-    "@openrouter/sdk": "^0.10.2",
-    "chalk": "^5.3.0",
-    "commander": "^12.1.0",
-    "dotenv": "^16.4.7",
-    "eta": "^3.5.0",
-    "jimp": "^1.6.0",
-    "p-map": "^7.0.2",
-    "winston": "^3.17.0",
-    "zod": "^3.24.1"
+    "build": "npm run build --workspaces --if-present",
+    "dev:cli": "npm run dev --workspace=apps/cli --",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "db:migrate:local": "npm run db:migrate:local --workspace=apps/api",
+    "db:migrate:remote": "npm run db:migrate:remote --workspace=apps/api",
+    "deploy:api": "npm run deploy --workspace=apps/api",
+    "deploy:web": "npm run deploy --workspace=apps/web"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@types/node": "^22.10.2",
-    "tsup": "^8.3.5",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^4.80.0"
   },
   "engines": {
     "node": ">=20.0.0"

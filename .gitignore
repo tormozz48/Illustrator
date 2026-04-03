@@ -6,3 +6,5 @@ output/
 .cache/
 *.log
 .DS_Store
+tsup.config.bundled_*.mjs
+.claude

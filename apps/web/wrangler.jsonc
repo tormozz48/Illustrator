@@ -1,0 +1,6 @@
+{
+  // Cloudflare Pages config for the React SPA
+  "name": "illustrator-web",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2024-11-01"
+}

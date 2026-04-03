@@ -1,0 +1,69 @@
+{
+  "name": "illustrator-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // ── R2 buckets ─────────────────────────────────────────────────────────────
+  "r2_buckets": [
+    {
+      "binding": "BOOKS_BUCKET",
+      "bucket_name": "illustrator-books",
+      "preview_bucket_name": "illustrator-books-preview"
+    }
+  ],
+
+  // ── D1 databases ───────────────────────────────────────────────────────────
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "illustrator-db",
+      "database_id": "d2635574-fa05-4c75-899f-231d295b364b",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+
+  // ── KV namespaces ──────────────────────────────────────────────────────────
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "f56e60964e914b338c193670e3b79702",
+      "preview_id": "REPLACE_WITH_YOUR_KV_PREVIEW_ID"
+    }
+  ],
+
+  // ── Queues ─────────────────────────────────────────────────────────────────
+  "queues": {
+    "producers": [
+      {
+        "binding": "ILLUSTRATE_QUEUE",
+        "queue": "illustrate-jobs"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "illustrate-jobs",
+        "max_batch_size": 1,
+        "max_retries": 2
+      }
+    ]
+  },
+
+  // ── Workflows ──────────────────────────────────────────────────────────────
+  "workflows": [
+    {
+      "binding": "ILLUSTRATE_WORKFLOW",
+      "name": "illustrate-book-workflow",
+      "class_name": "IllustrateBookWorkflow",
+      "script_name": "illustrator-api"
+    }
+  ],
+
+  // ── Secrets (set via: wrangler secret put GEMINI_API_KEY) ─────────────────
+  // GEMINI_API_KEY — Google Gemini API key
+
+  // ── Local dev overrides ────────────────────────────────────────────────────
+  "dev": {
+    "port": 8787
+  }
+}

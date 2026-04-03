@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { analyzeBookPrompt } from "./prompts/analyzeBook.js";
-import { findKeyScenePrompt } from "./prompts/findKeyScene.js";
+import { findKeyScenePrompt, findKeySceneFallbackPrompt } from "./prompts/findKeyScene.js";
 import { splitChaptersPrompt } from "./prompts/splitChapters.js";
 import { validateImagePrompt } from "./prompts/validateImage.js";
 import {
@@ -75,13 +75,26 @@ export class GeminiClient {
     chapter: RawChapter,
     bible: CharacterBible
   ): Promise<KeyScene> {
+    let useFallback = false;
     return callWithJsonRetry({
       call: async () => {
+        const prompt = useFallback
+          ? findKeySceneFallbackPrompt(chapter, bible)
+          : findKeyScenePrompt(chapter, bible);
         const result = await this.genAI.models.generateContent({
           model: TEXT_MODEL,
-          contents: [{ role: "user", parts: [{ text: findKeyScenePrompt(chapter, bible) }] }],
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
           config: { responseMimeType: "application/json" },
         });
+        if (!result.text) {
+          const finishReason = result.candidates?.[0]?.finishReason ?? 'no-candidates';
+          const blockReason = (result as any).promptFeedback?.blockReason ?? 'none';
+          logger.warn(
+            `findKeyScene(ch${chapter.number}): empty text — finishReason=${finishReason}, blockReason=${blockReason}` +
+            (useFallback ? ' (fallback prompt)' : ' — switching to fallback prompt'),
+          );
+          useFallback = true;
+        }
         return result.text;
       },
       schema: KeySceneSchema,

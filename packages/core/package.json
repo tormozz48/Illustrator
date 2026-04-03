@@ -1,0 +1,38 @@
+{
+  "name": "@illustrator/core",
+  "version": "0.1.0",
+  "description": "Core pipeline logic for bookillust — portable, no Cloudflare deps",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build tsconfig.json && npm run postbuild",
+    "postbuild": "node -e \"const{mkdirSync,copyFileSync}=require('fs');mkdirSync('dist/templates',{recursive:true});copyFileSync('src/templates/book.eta','dist/templates/book.eta');copyFileSync('src/templates/chapter.eta','dist/templates/chapter.eta');\"",
+    "dev": "tsc --build --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "dependencies": {
+    "@google/genai": "^1.48.0",
+    "eta": "^3.5.0",
+    "jimp": "^1.6.0",
+    "p-map": "^7.0.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
