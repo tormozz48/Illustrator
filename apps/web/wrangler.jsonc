@@ -2,5 +2,13 @@
   // Cloudflare Pages config for the React SPA
   "name": "illustrator-web",
   "pages_build_output_dir": "./dist",
-  "compatibility_date": "2024-11-01"
+  "compatibility_date": "2024-11-01",
+
+  // ── Environment variables ─────────────────────────────────────────────────
+  // API_URL is the deployed Worker URL. The Pages Function proxy reads this at
+  // runtime to forward /api/* requests to the correct Worker.
+  // Update this after deploying the Worker for the first time.
+  "vars": {
+    "API_URL": "https://illustrator-api.tormozz48.workers.dev"
+  }
 }
