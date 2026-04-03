@@ -1,8 +1,13 @@
-import { Jimp } from 'jimp';
-import pMap from 'p-map';
-import type { OpenRouterClient } from '../openRouter.js';
-import { logger } from '../logger.js';
-import type { CharacterBible, EnrichedChapter, KeyScene, RawChapter } from '../schemas/index.js';
+import { Jimp } from "jimp";
+import pMap from "p-map";
+import { logger } from "../logger.js";
+import type {
+  CharacterBible,
+  EnrichedChapter,
+  KeyScene,
+  RawChapter,
+} from "../schemas/index.js";
+import { GeminiClient } from "../gemini.js";
 
 const MAX_RETRIES = 2;
 const PASS_THRESHOLD = 0.7;
@@ -17,7 +22,7 @@ export async function illustrateChapters({
   concurrency,
   onProgress,
 }: {
-  client: OpenRouterClient;
+  client: GeminiClient;
   chapters: RawChapter[];
   bible: CharacterBible;
   anchorImages: Map<string, Buffer>;
@@ -30,7 +35,12 @@ export async function illustrateChapters({
   return pMap(
     chapters,
     async (chapter) => {
-      const result = await illustrateChapter({ client, chapter, bible, anchorImages });
+      const result = await illustrateChapter({
+        client,
+        chapter,
+        bible,
+        anchorImages,
+      });
       completed++;
       onProgress?.(completed, total);
       return result;
@@ -39,28 +49,40 @@ export async function illustrateChapters({
   );
 }
 
-function buildEntityDescription(entity: CharacterBible['entities'][number]): string {
-  const { name, visualDescription, physicalTraits, distinctiveFeatures, category } = entity;
+function buildEntityDescription(
+  entity: CharacterBible["entities"][number]
+): string {
+  const {
+    name,
+    visualDescription,
+    physicalTraits,
+    distinctiveFeatures,
+    category,
+  } = entity;
 
   // For characters enrich the prose description with structured traits when available
   let desc = `${name}: ${visualDescription}`;
-  if (category === 'character' && physicalTraits) {
+  if (category === "character" && physicalTraits) {
     const inline = [
       physicalTraits.age,
       physicalTraits.gender,
-      physicalTraits.hairColor && `${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ''}`.trim() + ' hair',
+      physicalTraits.hairColor &&
+        `${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ""}`.trim() +
+          " hair",
       physicalTraits.eyeColor && `${physicalTraits.eyeColor} eyes`,
       physicalTraits.skinTone && `${physicalTraits.skinTone} skin`,
       physicalTraits.facialFeatures,
       physicalTraits.clothing && `wearing ${physicalTraits.clothing}`,
-      physicalTraits.accessories?.length ? physicalTraits.accessories.join(', ') : undefined,
+      physicalTraits.accessories?.length
+        ? physicalTraits.accessories.join(", ")
+        : undefined,
     ]
       .filter(Boolean)
-      .join(', ');
+      .join(", ");
     if (inline) desc += ` — ${inline}`;
   }
   if (distinctiveFeatures.length > 0) {
-    desc += `. Distinctive: ${distinctiveFeatures.join(', ')}`;
+    desc += `. Distinctive: ${distinctiveFeatures.join(", ")}`;
   }
   return desc;
 }
@@ -77,13 +99,15 @@ function buildImagePrompt({
   const { styleGuide, entities, environments } = bible;
 
   // Resolve entity descriptions for all entities present in this scene
-  const presentEntities = entities.filter((e) => scene.entities.includes(e.name));
-  const entityDescs = presentEntities.map(buildEntityDescription).join('\n');
+  const presentEntities = entities.filter((e) =>
+    scene.entities.includes(e.name)
+  );
+  const entityDescs = presentEntities.map(buildEntityDescription).join("\n");
 
   // Resolve environment visual description
   const environment = environments.find((env) => env.name === scene.setting);
   const settingDesc = environment
-    ? `${environment.visualDescription} Atmosphere: ${environment.atmosphere}. ${environment.recurringElements.length > 0 ? `Always present: ${environment.recurringElements.join(', ')}.` : ''}`
+    ? `${environment.visualDescription} Atmosphere: ${environment.atmosphere}. ${environment.recurringElements.length > 0 ? `Always present: ${environment.recurringElements.join(", ")}.` : ""}`
     : scene.setting;
 
   const parts = [
@@ -95,12 +119,14 @@ function buildImagePrompt({
   ].filter(Boolean) as string[];
 
   if (suggestions.length > 0) {
-    parts.push(`IMPORTANT corrections for this attempt: ${suggestions.join('; ')}`);
+    parts.push(
+      `IMPORTANT corrections for this attempt: ${suggestions.join("; ")}`
+    );
   }
 
   parts.push(`Negative: ${styleGuide.negativePrompt}`);
 
-  return parts.join('\n\n');
+  return parts.join("\n\n");
 }
 
 async function optimizeImage(
@@ -112,10 +138,12 @@ async function optimizeImage(
     image.resize({ w: OUTPUT_WIDTH });
   }
 
-  const jpegBuffer = await image.getBuffer('image/jpeg', { quality: JPEG_QUALITY });
+  const jpegBuffer = await image.getBuffer("image/jpeg", {
+    quality: JPEG_QUALITY,
+  });
 
   return {
-    base64: jpegBuffer.toString('base64'),
+    base64: jpegBuffer.toString("base64"),
     width: image.width,
     height: image.height,
   };
@@ -127,7 +155,7 @@ async function illustrateChapter({
   bible,
   anchorImages,
 }: {
-  client: OpenRouterClient;
+  client: GeminiClient;
   chapter: RawChapter;
   bible: CharacterBible;
   anchorImages: Map<string, Buffer>;
@@ -144,9 +172,15 @@ async function illustrateChapter({
   let suggestions: string[] = [];
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const prompt = buildImagePrompt({ scene: keyScene, bible, suggestions: attempt > 0 ? suggestions : [] });
+    const prompt = buildImagePrompt({
+      scene: keyScene,
+      bible,
+      suggestions: attempt > 0 ? suggestions : [],
+    });
 
-    logger.debug(`ch${chapter.number} attempt ${attempt + 1}/${MAX_RETRIES + 1}`);
+    logger.debug(
+      `ch${chapter.number} attempt ${attempt + 1}/${MAX_RETRIES + 1}`
+    );
 
     let imageBuffer: Buffer;
     try {

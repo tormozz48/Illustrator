@@ -1,6 +1,6 @@
-import type { OpenRouterClient } from '../openRouter.js';
+import type { GeminiClient } from '../gemini.js';
 import type { RawChapter } from '../schemas/index.js';
 
-export async function splitIntoChapters(client: OpenRouterClient, text: string): Promise<RawChapter[]> {
+export async function splitIntoChapters(client: GeminiClient, text: string): Promise<RawChapter[]> {
   return client.splitChapters(text);
 }
