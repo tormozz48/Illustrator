@@ -18,7 +18,8 @@
     "db:migrate:local": "npm run db:migrate:local --workspace=apps/api",
     "db:migrate:remote": "npm run db:migrate:remote --workspace=apps/api",
     "deploy:api": "npm run deploy --workspace=apps/api",
-    "deploy:web": "npm run deploy --workspace=apps/web"
+    "deploy:web": "npm run deploy --workspace=apps/web",
+    "deploy": "npm run deploy:api && npm run deploy:web"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
