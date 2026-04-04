@@ -1,16 +1,16 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import pMap from 'p-map';
 import {
+  type AppConfig,
+  type BookResult,
   GeminiClient,
+  assemble,
   buildAnchorPrompt,
   buildBible,
   illustrateChapters,
-  assemble,
   splitIntoChapters,
-  type AppConfig,
-  type BookResult,
 } from '@illustrator/core';
+import pMap from 'p-map';
 import { config } from './config.js';
 import { createSpinner, logger } from './logger.js';
 import { extractTitle, readBook } from './reader.js';
@@ -40,9 +40,7 @@ export async function run(appConfig: AppConfig): Promise<BookResult> {
   logger.info(`Chapters: ${chapters.length}`);
 
   for (const entity of bible.entities) {
-    logger.debug(
-      `[${entity.category.padEnd(10)}][${entity.importance.padEnd(10)}] ${entity.name}`
-    );
+    logger.debug(`[${entity.category.padEnd(10)}][${entity.importance.padEnd(10)}] ${entity.name}`);
   }
 
   // Generate reference images for primary entities.

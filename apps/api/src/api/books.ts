@@ -44,8 +44,7 @@ books.post('/', async (c) => {
   const r2Key = `books/${bookId}/source.txt`;
 
   // Derive title from filename if not provided
-  const derivedTitle =
-    title || uploadedFile.name.replace(/\.txt$/i, '').replace(/[_-]/g, ' ');
+  const derivedTitle = title || uploadedFile.name.replace(/\.txt$/i, '').replace(/[_-]/g, ' ');
 
   // Upload raw text to R2
   const buffer = await uploadedFile.arrayBuffer();
@@ -133,9 +132,7 @@ books.delete('/:id', async (c) => {
   const illRows = await listIllustrationR2KeysByBook(c.env.DB, id);
   for (const il of illRows) keysToDelete.push(il.r2_key);
 
-  await Promise.allSettled(
-    keysToDelete.map((k) => c.env.BOOKS_BUCKET.delete(k))
-  );
+  await Promise.allSettled(keysToDelete.map((k) => c.env.BOOKS_BUCKET.delete(k)));
 
   // Cascade deletes handle DB cleanup (FK ON DELETE CASCADE)
   await deleteBook(c.env.DB, id);

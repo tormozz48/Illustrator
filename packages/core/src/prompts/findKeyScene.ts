@@ -1,17 +1,15 @@
 import type { CharacterBible, RawChapter } from '../schemas/index.js';
 
 const APPROACH_HINTS: Record<string, string> = {
-  'narrative-scene': 'Capture a story moment — show entities interacting with each other or their environment.',
-  'descriptive':     'Showcase a key subject in full visual detail within its environment.',
-  'diagrammatic':    'Depict a procedure, process, or technique in a clear, instructional composition.',
-  'abstract':        'Evoke the mood, theme, or central concept of the chapter rather than a literal event.',
-  'portrait':        'Present the primary subject close-up with maximum detail.',
+  'narrative-scene':
+    'Capture a story moment — show entities interacting with each other or their environment.',
+  descriptive: 'Showcase a key subject in full visual detail within its environment.',
+  diagrammatic: 'Depict a procedure, process, or technique in a clear, instructional composition.',
+  abstract: 'Evoke the mood, theme, or central concept of the chapter rather than a literal event.',
+  portrait: 'Present the primary subject close-up with maximum detail.',
 };
 
-export function findKeyScenePrompt(
-  chapter: RawChapter,
-  bible: CharacterBible
-): string {
+export function findKeyScenePrompt(chapter: RawChapter, bible: CharacterBible): string {
   const entityNames = bible.entities.map((e) => e.name).join(', ');
   const environmentNames = bible.environments.map((e) => e.name).join(', ');
   const approachHint = APPROACH_HINTS[bible.classification.illustrationApproach] ?? '';
@@ -49,10 +47,7 @@ ${chapter.content}`;
  * Fallback prompt used when the full chapter content is blocked by the LLM's
  * safety filter.  Uses only the chapter title and bible metadata — no raw text.
  */
-export function findKeySceneFallbackPrompt(
-  chapter: RawChapter,
-  bible: CharacterBible
-): string {
+export function findKeySceneFallbackPrompt(chapter: RawChapter, bible: CharacterBible): string {
   const entityNames = bible.entities.map((e) => e.name).join(', ');
   const environmentNames = bible.environments.map((e) => e.name).join(', ');
   const approachHint = APPROACH_HINTS[bible.classification.illustrationApproach] ?? '';

@@ -16,7 +16,7 @@ chapters.get('/', async (c) => {
 // Streams the illustration image for a chapter directly from R2.
 chapters.get('/:num/img', async (c) => {
   const bookId = c.req.param('id');
-  const num = parseInt(c.req.param('num'), 10);
+  const num = Number.parseInt(c.req.param('num'), 10);
 
   if (Number.isNaN(num)) return c.json({ error: 'Invalid chapter number' }, 400);
 

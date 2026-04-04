@@ -19,10 +19,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env, params } = context;
 
   if (!env.API_URL) {
-    return new Response(
-      JSON.stringify({ error: 'API_URL environment variable is not set' }),
-      { status: 503, headers: { 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'API_URL environment variable is not set' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   // Reconstruct the target URL on the Worker

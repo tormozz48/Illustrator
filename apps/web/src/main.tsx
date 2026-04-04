@@ -1,10 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Home from './pages/Home.js';
-import BookList from './pages/BookList.js';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import BookDetail from './pages/BookDetail.js';
+import BookList from './pages/BookList.js';
 import BookReader from './pages/BookReader.js';
+import Home from './pages/Home.js';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root element not found');

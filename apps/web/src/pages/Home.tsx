@@ -1,4 +1,4 @@
-import { useState, useRef, type FormEvent } from 'react';
+import { type FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import styles from './Home.module.css';
@@ -32,24 +32,22 @@ export default function Home() {
     <main className={styles.main}>
       <header className={styles.hero}>
         <h1>📖 Bookillust</h1>
-        <p>Upload a plain-text book and get a beautifully illustrated reading experience powered by AI.</p>
+        <p>
+          Upload a plain-text book and get a beautifully illustrated reading experience powered by
+          AI.
+        </p>
       </header>
 
       <form className={styles.form} onSubmit={handleSubmit}>
         <div className={styles.field}>
           <label htmlFor="file">Book file (.txt)</label>
-          <input
-            id="file"
-            ref={fileRef}
-            type="file"
-            accept=".txt"
-            required
-            disabled={uploading}
-          />
+          <input id="file" ref={fileRef} type="file" accept=".txt" required disabled={uploading} />
         </div>
 
         <div className={styles.field}>
-          <label htmlFor="title">Title <span className={styles.optional}>(optional — auto-detected from filename)</span></label>
+          <label htmlFor="title">
+            Title <span className={styles.optional}>(optional — auto-detected from filename)</span>
+          </label>
           <input
             id="title"
             type="text"
@@ -61,7 +59,9 @@ export default function Home() {
         </div>
 
         <div className={styles.field}>
-          <label htmlFor="author">Author <span className={styles.optional}>(optional)</span></label>
+          <label htmlFor="author">
+            Author <span className={styles.optional}>(optional)</span>
+          </label>
           <input
             id="author"
             type="text"

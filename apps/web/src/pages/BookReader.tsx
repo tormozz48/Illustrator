@@ -5,7 +5,7 @@
  * by the Worker from R2 (or KV cache). We use an iframe so the reader's
  * own scoped CSS doesn't bleed into the SPA styles.
  */
-import { useParams, Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import styles from './BookReader.module.css';
 
 export default function BookReader() {
@@ -18,7 +18,9 @@ export default function BookReader() {
   return (
     <div className={styles.container}>
       <nav className={styles.topBar}>
-        <Link to="/books" className={styles.back}>← Library</Link>
+        <Link to="/books" className={styles.back}>
+          ← Library
+        </Link>
       </nav>
       <iframe
         className={styles.frame}

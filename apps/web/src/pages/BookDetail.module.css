@@ -12,7 +12,9 @@
   margin-bottom: 1.5rem;
 }
 
-.back:hover { text-decoration: underline; }
+.back:hover {
+  text-decoration: underline;
+}
 
 .title {
   font-size: 1.8rem;
@@ -42,8 +44,13 @@
   transition: color 0.2s;
 }
 
-.step.done { color: #27ae60; }
-.step.active { color: var(--text); font-weight: 600; }
+.step.done {
+  color: #27ae60;
+}
+.step.active {
+  color: var(--text);
+  font-weight: 600;
+}
 
 .stepDot {
   font-size: 1.1rem;
@@ -53,7 +60,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spinner {
@@ -81,5 +90,10 @@
   margin-bottom: 0.4rem;
 }
 
-.muted { color: var(--text-muted); }
-.error { color: #c0392b; margin-bottom: 1rem; }
+.muted {
+  color: var(--text-muted);
+}
+.error {
+  color: #c0392b;
+  margin-bottom: 1rem;
+}

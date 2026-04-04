@@ -14,7 +14,15 @@ export interface Book {
   id: string;
   title: string;
   author: string | null;
-  status: 'pending' | 'analyzing' | 'splitting' | 'anchoring' | 'illustrating' | 'assembling' | 'done' | 'error';
+  status:
+    | 'pending'
+    | 'analyzing'
+    | 'splitting'
+    | 'anchoring'
+    | 'illustrating'
+    | 'assembling'
+    | 'done'
+    | 'error';
   error_msg: string | null;
   created_at: string;
   updated_at: string;
@@ -28,13 +36,10 @@ export interface ChapterMeta {
   has_illustration: number;
 }
 
-async function apiFetch<T>(
-  path: string,
-  init?: RequestInit
-): Promise<T> {
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, init);
   if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string };
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
@@ -42,7 +47,11 @@ async function apiFetch<T>(
 
 export const api = {
   /** Upload a book file and start illustration */
-  uploadBook(file: File, title?: string, author?: string): Promise<Pick<Book, 'id' | 'title' | 'status'>> {
+  uploadBook(
+    file: File,
+    title?: string,
+    author?: string
+  ): Promise<Pick<Book, 'id' | 'title' | 'status'>> {
     const form = new FormData();
     form.append('file', file);
     if (title) form.append('title', title);

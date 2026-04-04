@@ -7,8 +7,8 @@
  * Import this module early (before any pipeline functions run) so that
  * core's getLogger() returns this Pino instance instead of consoleLogger.
  */
-import { type Logger, setLogger } from "@illustrator/core";
-import pino from "pino";
+import { type Logger, setLogger } from '@illustrator/core';
+import pino from 'pino';
 
 export interface Spinner {
   start(msg: string): void;
@@ -17,22 +17,20 @@ export interface Spinner {
   fail(msg: string): void;
 }
 
-const isJson =
-  process.env["LOG_FORMAT"] === "json" ||
-  process.env["NODE_ENV"] === "production";
+const isJson = process.env.LOG_FORMAT === 'json' || process.env.NODE_ENV === 'production';
 
 const pinoLoggerImpl = pino({
-  level: process.env["LOG_LEVEL"] ?? "info",
-  base: { service: "bookillust" },
+  level: process.env.LOG_LEVEL ?? 'info',
+  base: { service: 'bookillust' },
   ...(isJson
     ? {}
     : {
         transport: {
-          target: "pino-pretty",
+          target: 'pino-pretty',
           options: {
             colorize: true,
-            translateTime: "HH:mm:ss",
-            ignore: "pid,hostname",
+            translateTime: 'HH:mm:ss',
+            ignore: 'pid,hostname',
           },
         },
       }),

@@ -2,10 +2,7 @@
   "name": "illustrator-saas",
   "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
+  "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "dev:cli": "npm run dev --workspace=apps/cli --",

@@ -1,4 +1,4 @@
-import { getLogger } from "@illustrator/core";
+import { getLogger } from '@illustrator/core';
 
 import { markBookDone } from '../db/book.db.js';
 import { markJobComplete } from '../db/job.db.js';
@@ -10,12 +10,7 @@ interface Ctx {
   readonly CACHE: KVNamespace;
 }
 
-export async function finalizeStep({
-  bookId,
-  htmlR2Key,
-  DB,
-  CACHE,
-}: Ctx): Promise<void> {
+export async function finalizeStep({ bookId, htmlR2Key, DB, CACHE }: Ctx): Promise<void> {
   const log = getLogger();
   await markBookDone(DB, bookId, htmlR2Key);
   await markJobComplete(DB, `illustrate-${bookId}`);

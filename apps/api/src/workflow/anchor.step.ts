@@ -1,11 +1,11 @@
 import {
+  type CharacterBible,
+  type GeminiClient,
   buildAnchorPrompt,
   getLogger,
-  type GeminiClient,
-  type CharacterBible,
-} from "@illustrator/core";
+} from '@illustrator/core';
 
-type Entity = CharacterBible["entities"][number];
+type Entity = CharacterBible['entities'][number];
 
 interface Ctx {
   readonly bookId: string;
@@ -33,11 +33,16 @@ export async function anchorEntityStep({
 
   try {
     const imgBuf = await gemini.generateImage(prompt);
-    const key = `books/${bookId}/anchors/${entity.name.replace(/\s+/g, "_")}.webp`;
+    const key = `books/${bookId}/anchors/${entity.name.replace(/\s+/g, '_')}.webp`;
     await BOOKS_BUCKET.put(key, imgBuf, {
-      httpMetadata: { contentType: "image/webp" },
+      httpMetadata: { contentType: 'image/webp' },
     });
-    log.info('step.anchor.complete', { bookId, entity: entity.name, r2Key: key, bytes: imgBuf.byteLength });
+    log.info('step.anchor.complete', {
+      bookId,
+      entity: entity.name,
+      r2Key: key,
+      bytes: imgBuf.byteLength,
+    });
     return key;
   } catch (err) {
     // Anchor generation is best-effort; don't fail the whole workflow

@@ -1,6 +1,6 @@
-import { getLogger } from "@illustrator/core";
+import { getLogger } from '@illustrator/core';
 
-import type { makeSetStatus } from "./setStatus.js";
+import type { makeSetStatus } from './setStatus.js';
 
 interface Ctx {
   readonly setStatus: ReturnType<typeof makeSetStatus>;
@@ -8,14 +8,10 @@ interface Ctx {
   readonly r2Key: string;
 }
 
-export async function readBookStep({
-  setStatus,
-  BOOKS_BUCKET,
-  r2Key,
-}: Ctx): Promise<string> {
+export async function readBookStep({ setStatus, BOOKS_BUCKET, r2Key }: Ctx): Promise<string> {
   const log = getLogger();
   log.info('step.readBook.start', { r2Key });
-  await setStatus("analyzing");
+  await setStatus('analyzing');
   const obj = await BOOKS_BUCKET.get(r2Key);
   if (!obj) throw new Error(`R2 object not found: ${r2Key}`);
   const text = await obj.text();

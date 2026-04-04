@@ -11,7 +11,7 @@ export function sanitizeLlmJson(raw: string): string {
 
   s = s.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```\s*$/i, '');
   s = s.replace(/,(\s*[}\]])/g, '$1');
-  s = s.replace(/^\uFEFF/, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
+  s = s.replace(/^\uFEFF/, '').replace(/\u200B|\u200C|\u200D|\uFEFF/g, '');
 
   return s.trim();
 }

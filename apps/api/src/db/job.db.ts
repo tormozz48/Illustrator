@@ -1,8 +1,4 @@
-export async function insertJob(
-  db: D1Database,
-  id: string,
-  bookId: string
-): Promise<void> {
+export async function insertJob(db: D1Database, id: string, bookId: string): Promise<void> {
   await db
     .prepare(
       `INSERT OR IGNORE INTO jobs (id, book_id, workflow_status, started_at, created_at)

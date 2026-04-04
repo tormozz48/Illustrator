@@ -130,7 +130,12 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
         totalSkipped += failed;
       }
 
-      log.info('workflow.illustrated', { bookId, batchCount: batches.length, totalIllustrated, totalSkipped });
+      log.info('workflow.illustrated', {
+        bookId,
+        batchCount: batches.length,
+        totalIllustrated,
+        totalSkipped,
+      });
 
       const htmlR2Key = await step.do('assemble', () =>
         assembleStep({ setStatus, bookId, bible, DB, BOOKS_BUCKET })

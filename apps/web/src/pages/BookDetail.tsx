@@ -3,17 +3,17 @@
  * Polls every 3 seconds and redirects to the reader once status === 'done'.
  */
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { api, type Book } from '../api/client.js';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { type Book, api } from '../api/client.js';
 import styles from './BookDetail.module.css';
 
 const STEPS = [
-  { key: 'analyzing',   label: 'Analyzing characters & world' },
-  { key: 'splitting',   label: 'Splitting into chapters' },
-  { key: 'anchoring',   label: 'Finding key scenes' },
+  { key: 'analyzing', label: 'Analyzing characters & world' },
+  { key: 'splitting', label: 'Splitting into chapters' },
+  { key: 'anchoring', label: 'Finding key scenes' },
   { key: 'illustrating', label: 'Generating illustrations' },
-  { key: 'assembling',  label: 'Assembling reader' },
-  { key: 'done',        label: 'Done!' },
+  { key: 'assembling', label: 'Assembling reader' },
+  { key: 'done', label: 'Done!' },
 ];
 
 function stepIndex(status: string): number {
@@ -56,14 +56,20 @@ export default function BookDetail() {
   }
 
   if (!book) {
-    return <main className={styles.main}><p className={styles.muted}>Loading…</p></main>;
+    return (
+      <main className={styles.main}>
+        <p className={styles.muted}>Loading…</p>
+      </main>
+    );
   }
 
   const currentStep = stepIndex(book.status);
 
   return (
     <main className={styles.main}>
-      <Link to="/books" className={styles.back}>← Library</Link>
+      <Link to="/books" className={styles.back}>
+        ← Library
+      </Link>
 
       <h1 className={styles.title}>{book.title}</h1>
       {book.author && <p className={styles.author}>by {book.author}</p>}

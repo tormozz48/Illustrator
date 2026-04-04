@@ -1,12 +1,11 @@
 import { GoogleGenAI } from '@google/genai';
+import type { AIProvider } from './ai-provider.js';
 import { getLogger } from './logger.js';
 import { analyzeBookPrompt } from './prompts/analyzeBook.js';
-import {
-  findKeySceneFallbackPrompt,
-  findKeyScenePrompt,
-} from './prompts/findKeyScene.js';
+import { findKeySceneFallbackPrompt, findKeyScenePrompt } from './prompts/findKeyScene.js';
 import { splitChaptersPrompt } from './prompts/splitChapters.js';
 import { validateImagePrompt } from './prompts/validateImage.js';
+import { ChapterBoundaryResultSchema } from './schemas/chapters.js';
 import {
   type CharacterBible,
   CharacterBibleSchema,
@@ -16,7 +15,6 @@ import {
   type ValidationResult,
   ValidationResultSchema,
 } from './schemas/index.js';
-import { ChapterBoundaryResultSchema } from './schemas/chapters.js';
 import { callWithJsonRetry } from './utils/llmRetry.js';
 import { sliceChapters } from './utils/sliceChapters.js';
 import { estimateTruncationRisk } from './utils/truncationGuard.js';
@@ -24,7 +22,7 @@ import { estimateTruncationRisk } from './utils/truncationGuard.js';
 const TEXT_MODEL = 'gemini-2.5-flash';
 const IMAGE_MODEL = 'gemini-2.5-flash-image';
 
-export class GeminiClient {
+export class GeminiClient implements AIProvider {
   private readonly genAI: GoogleGenAI;
 
   /**
@@ -104,10 +102,11 @@ export class GeminiClient {
         });
         if (!result.text) {
           const finishReason = result.candidates?.[0]?.finishReason ?? 'no-candidates';
-          const blockReason = (result as unknown as { promptFeedback?: { blockReason?: string } }).promptFeedback?.blockReason ?? 'none';
+          const blockReason =
+            (result as unknown as { promptFeedback?: { blockReason?: string } }).promptFeedback
+              ?.blockReason ?? 'none';
           logger.warn(
-            `findKeyScene(ch${chapter.number}): empty text — finishReason=${finishReason}, blockReason=${blockReason}` +
-              (useFallback ? ' (fallback prompt)' : ' — switching to fallback prompt')
+            `findKeyScene(ch${chapter.number}): empty text — finishReason=${finishReason}, blockReason=${blockReason}${useFallback ? ' (fallback prompt)' : ' — switching to fallback prompt'}`
           );
           useFallback = true;
         }

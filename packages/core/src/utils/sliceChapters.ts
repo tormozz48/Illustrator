@@ -20,9 +20,7 @@ function findMarker(rawText: string, marker: string): number {
     if (prefix.length < MIN_FUZZY) break;
     const idx = rawText.indexOf(prefix);
     if (idx !== -1) {
-      getLogger().warn(
-        `sliceChapters: exact marker not found, used ${len}-char fuzzy prefix`
-      );
+      getLogger().warn(`sliceChapters: exact marker not found, used ${len}-char fuzzy prefix`);
       return idx;
     }
   }

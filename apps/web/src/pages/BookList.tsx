@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type Book } from '../api/client.js';
+import { type Book, api } from '../api/client.js';
 import styles from './BookList.module.css';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -58,14 +58,18 @@ export default function BookList() {
     <main className={styles.main}>
       <header className={styles.header}>
         <h1>Your Library</h1>
-        <Link to="/" className={styles.uploadBtn}>+ Upload book</Link>
+        <Link to="/" className={styles.uploadBtn}>
+          + Upload book
+        </Link>
       </header>
 
       {loading && <p className={styles.muted}>Loading…</p>}
       {error && <p className={styles.error}>{error}</p>}
 
       {!loading && books.length === 0 && (
-        <p className={styles.empty}>No books yet. <Link to="/">Upload one!</Link></p>
+        <p className={styles.empty}>
+          No books yet. <Link to="/">Upload one!</Link>
+        </p>
       )}
 
       <ul className={styles.list}>
@@ -83,16 +87,22 @@ export default function BookList() {
               <div className={styles.cardMeta}>
                 <StatusBadge status={book.status} />
                 {book.error_msg && (
-                  <span className={styles.errorMsg} title={book.error_msg}>⚠ {book.error_msg.slice(0, 80)}</span>
+                  <span className={styles.errorMsg} title={book.error_msg}>
+                    ⚠ {book.error_msg.slice(0, 80)}
+                  </span>
                 )}
               </div>
             </div>
             <div className={styles.cardActions}>
               {book.status === 'done' && (
-                <Link to={`/books/${book.id}/read`} className={styles.readBtn}>Read</Link>
+                <Link to={`/books/${book.id}/read`} className={styles.readBtn}>
+                  Read
+                </Link>
               )}
               {(book.status === 'pending' || book.status !== 'done') && book.status !== 'error' && (
-                <Link to={`/books/${book.id}`} className={styles.progressBtn}>Progress</Link>
+                <Link to={`/books/${book.id}`} className={styles.progressBtn}>
+                  Progress
+                </Link>
               )}
               <button
                 className={styles.deleteBtn}

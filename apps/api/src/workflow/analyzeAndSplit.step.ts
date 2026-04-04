@@ -1,15 +1,15 @@
 import {
+  type CharacterBible,
+  type GeminiClient,
+  type RawChapter,
   buildBible,
   getLogger,
   splitIntoChapters,
-  type GeminiClient,
-  type CharacterBible,
-  type RawChapter,
-} from "@illustrator/core";
+} from '@illustrator/core';
 
 import { upsertBible } from '../db/bible.db.js';
 import { insertChapters } from '../db/chapter.db.js';
-import type { makeSetStatus } from "./setStatus.js";
+import type { makeSetStatus } from './setStatus.js';
 
 interface Ctx {
   readonly setStatus: ReturnType<typeof makeSetStatus>;
@@ -28,7 +28,7 @@ export async function analyzeAndSplitStep({
 }: Ctx): Promise<[CharacterBible, RawChapter[]]> {
   const log = getLogger();
   log.info('step.analyzeAndSplit.start', { bookId, bookChars: bookText.length });
-  await setStatus("splitting");
+  await setStatus('splitting');
 
   const [book, chapters] = await Promise.all([
     buildBible(gemini, bookText),

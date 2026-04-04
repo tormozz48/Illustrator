@@ -1,5 +1,6 @@
 import { Jimp } from 'jimp';
 import pMap from 'p-map';
+import type { AIProvider } from '../ai-provider.js';
 import { getLogger } from '../logger.js';
 import type {
   CharacterBible,
@@ -8,7 +9,6 @@ import type {
   RawChapter,
   VisualEntity,
 } from '../schemas/index.js';
-import type { GeminiClient } from '../gemini.js';
 
 const MAX_RETRIES = 2;
 const PASS_THRESHOLD = 0.7;
@@ -34,14 +34,12 @@ export function buildAnchorPrompt({
       physicalTraits.age,
       physicalTraits.gender,
       physicalTraits.hairColor &&
-        `${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ''}`.trim() + ' hair',
+        `${`${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ''}`.trim()} hair`,
       physicalTraits.eyeColor && `${physicalTraits.eyeColor} eyes`,
       physicalTraits.skinTone && `${physicalTraits.skinTone} skin`,
       physicalTraits.facialFeatures,
       physicalTraits.clothing && `wearing ${physicalTraits.clothing}`,
-      physicalTraits.accessories?.length
-        ? physicalTraits.accessories.join(', ')
-        : undefined,
+      physicalTraits.accessories?.length ? physicalTraits.accessories.join(', ') : undefined,
     ]
       .filter(Boolean)
       .join(', ');
@@ -56,7 +54,7 @@ export function buildAnchorPrompt({
       ? 'Full-body portrait, front-facing, neutral expression, neutral pose, plain background, character reference sheet.'
       : category === 'creature'
         ? 'Full-body side view, neutral pose, plain background, creature reference sheet.'
-        : `Detailed view of subject, isolated on plain background, reference sheet.`;
+        : 'Detailed view of subject, isolated on plain background, reference sheet.';
 
   return [stylePrefix, subjectLine, refInstruction, `Negative: ${negativePrompt}`].join('\n\n');
 }
@@ -137,7 +135,7 @@ export async function illustrateChapters({
   concurrency,
   onProgress,
 }: {
-  client: GeminiClient;
+  client: AIProvider;
   chapters: RawChapter[];
   bible: CharacterBible;
   anchorImages: Map<string, Buffer>;
@@ -169,7 +167,7 @@ export async function illustrateChapter({
   bible,
   anchorImages,
 }: {
-  client: GeminiClient;
+  client: AIProvider;
   chapter: RawChapter;
   bible: CharacterBible;
   anchorImages: Map<string, Buffer>;
@@ -257,14 +255,12 @@ function buildEntityDescription(entity: CharacterBible['entities'][number]): str
       physicalTraits.age,
       physicalTraits.gender,
       physicalTraits.hairColor &&
-        `${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ''}`.trim() + ' hair',
+        `${`${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ''}`.trim()} hair`,
       physicalTraits.eyeColor && `${physicalTraits.eyeColor} eyes`,
       physicalTraits.skinTone && `${physicalTraits.skinTone} skin`,
       physicalTraits.facialFeatures,
       physicalTraits.clothing && `wearing ${physicalTraits.clothing}`,
-      physicalTraits.accessories?.length
-        ? physicalTraits.accessories.join(', ')
-        : undefined,
+      physicalTraits.accessories?.length ? physicalTraits.accessories.join(', ') : undefined,
     ]
       .filter(Boolean)
       .join(', ');

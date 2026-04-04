@@ -38,7 +38,7 @@ export async function getBookReadInfo(
   id: string
 ): Promise<{ status: string; html_r2_key: string | null } | null> {
   return db
-    .prepare(`SELECT status, html_r2_key FROM books WHERE id = ?`)
+    .prepare('SELECT status, html_r2_key FROM books WHERE id = ?')
     .bind(id)
     .first<{ status: string; html_r2_key: string | null }>();
 }
@@ -48,7 +48,7 @@ export async function getBookR2Keys(
   id: string
 ): Promise<{ r2_key: string | null; html_r2_key: string | null } | null> {
   return db
-    .prepare(`SELECT r2_key, html_r2_key FROM books WHERE id = ?`)
+    .prepare('SELECT r2_key, html_r2_key FROM books WHERE id = ?')
     .bind(id)
     .first<{ r2_key: string | null; html_r2_key: string | null }>();
 }
@@ -58,7 +58,7 @@ export async function getBookMeta(
   id: string
 ): Promise<{ title: string; author: string | null } | null> {
   return db
-    .prepare(`SELECT title, author FROM books WHERE id = ?`)
+    .prepare('SELECT title, author FROM books WHERE id = ?')
     .bind(id)
     .first<{ title: string; author: string | null }>();
 }
@@ -77,11 +77,7 @@ export async function updateBookStatus(
     .run();
 }
 
-export async function markBookDone(
-  db: D1Database,
-  id: string,
-  htmlR2Key: string
-): Promise<void> {
+export async function markBookDone(db: D1Database, id: string, htmlR2Key: string): Promise<void> {
   await db
     .prepare(
       `UPDATE books
@@ -93,5 +89,5 @@ export async function markBookDone(
 }
 
 export async function deleteBook(db: D1Database, id: string): Promise<void> {
-  await db.prepare(`DELETE FROM books WHERE id = ?`).bind(id).run();
+  await db.prepare('DELETE FROM books WHERE id = ?').bind(id).run();
 }

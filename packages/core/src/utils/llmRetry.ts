@@ -77,9 +77,7 @@ function parseJsonResponse({ rawText, prefix }: { rawText: string; prefix: strin
   } catch (err) {
     const message = `${prefix}: JSON.parse failed — ${err instanceof Error ? err.message : String(err)}`;
     getLogger().warn(message);
-    getLogger().debug(
-      `${prefix}: response excerpt (first 300 chars): ${rawText.slice(0, 300)}`
-    );
+    getLogger().debug(`${prefix}: response excerpt (first 300 chars): ${rawText.slice(0, 300)}`);
     throw new Error(message);
   }
 }

@@ -1,10 +1,10 @@
 import {
-  illustrateChapter,
-  type GeminiClient,
   type CharacterBible,
-  type RawChapter,
   type EnrichedChapter,
-} from "@illustrator/core";
+  type GeminiClient,
+  type RawChapter,
+  illustrateChapter,
+} from '@illustrator/core';
 
 interface Ctx {
   readonly bookId: string;
@@ -39,9 +39,7 @@ export async function illustrateChapterStep({
   }
 
   // Persist anchor (key-scene location) to D1
-  const chRow = await DB.prepare(
-    `SELECT id FROM chapters WHERE book_id = ? AND number = ?`
-  )
+  const chRow = await DB.prepare('SELECT id FROM chapters WHERE book_id = ? AND number = ?')
     .bind(bookId, ch.number)
     .first<{ id: number }>();
 
@@ -57,10 +55,10 @@ export async function illustrateChapterStep({
   if (!enriched.illustration) return null;
 
   // Decode base64 and upload to R2
-  const imgBuf = Buffer.from(enriched.illustration.imageBase64, "base64");
+  const imgBuf = Buffer.from(enriched.illustration.imageBase64, 'base64');
   const imgR2Key = `books/${bookId}/chapters/${ch.number}/img.webp`;
   await BOOKS_BUCKET.put(imgR2Key, imgBuf, {
-    httpMetadata: { contentType: "image/webp" },
+    httpMetadata: { contentType: 'image/webp' },
   });
 
   await DB.prepare(

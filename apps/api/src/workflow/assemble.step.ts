@@ -1,8 +1,8 @@
-import { assembleWebHtml, getLogger, type CharacterBible } from "@illustrator/core";
+import { type CharacterBible, assembleWebHtml, getLogger } from '@illustrator/core';
 
 import { getBookMeta } from '../db/book.db.js';
 import { listChaptersForAssemble } from '../db/chapter.db.js';
-import type { makeSetStatus } from "./setStatus.js";
+import type { makeSetStatus } from './setStatus.js';
 
 interface Ctx {
   readonly setStatus: ReturnType<typeof makeSetStatus>;
@@ -21,7 +21,7 @@ export async function assembleStep({
 }: Ctx): Promise<string> {
   const log = getLogger();
   log.info('step.assemble.start', { bookId });
-  await setStatus("assembling");
+  await setStatus('assembling');
 
   const bookRow = await getBookMeta(DB, bookId);
   const chRows = await listChaptersForAssemble(DB, bookId);
@@ -31,15 +31,13 @@ export async function assembleStep({
     title: row.title,
     content: row.content,
     keyScene:
-      row.insert_after_para !== null
-        ? { insertAfterParagraph: row.insert_after_para }
-        : null,
+      row.insert_after_para !== null ? { insertAfterParagraph: row.insert_after_para } : null,
     hasIllustration: row.has_illustration === 1,
   }));
 
   const html = assembleWebHtml({
     bookId,
-    title: bookRow?.title ?? "Untitled",
+    title: bookRow?.title ?? 'Untitled',
     author: bookRow?.author ?? undefined,
     bible,
     chapters: webChapters,
@@ -48,7 +46,7 @@ export async function assembleStep({
 
   const key = `books/${bookId}/reader.html`;
   await BOOKS_BUCKET.put(key, html, {
-    httpMetadata: { contentType: "text/html; charset=utf-8" },
+    httpMetadata: { contentType: 'text/html; charset=utf-8' },
   });
 
   log.info('step.assemble.complete', {

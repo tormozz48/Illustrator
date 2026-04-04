@@ -110,9 +110,7 @@ function renderChapter(ch: WebChapter, bookId: string, apiBase: string): string 
   }
 
   const prevLink =
-    ch.number > 1
-      ? `<a href="#chapter-${ch.number - 1}">&larr; Previous</a>`
-      : '<span></span>';
+    ch.number > 1 ? `<a href="#chapter-${ch.number - 1}">&larr; Previous</a>` : '<span></span>';
   const nextLink =
     ch.number < paragraphs.length
       ? `<a href="#chapter-${ch.number + 1}">Next &rarr;</a>`

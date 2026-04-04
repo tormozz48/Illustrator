@@ -4,8 +4,8 @@
 // setLogger() so all pipeline modules use it from this point on.
 import './logger.js';
 
-import { Command } from 'commander';
 import { AppConfigSchema } from '@illustrator/core';
+import { Command } from 'commander';
 import { logger } from './logger.js';
 import { run } from './orchestrator.js';
 

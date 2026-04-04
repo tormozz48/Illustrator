@@ -18,7 +18,9 @@
   font-size: 0.88rem;
 }
 
-.back:hover { text-decoration: underline; }
+.back:hover {
+  text-decoration: underline;
+}
 
 .frame {
   flex: 1;

@@ -10,42 +10,40 @@
  */
 const BASE = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') ?? '';
 async function apiFetch(path, init) {
-    const res = await fetch(`${BASE}${path}`, init);
-    if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-    }
-    return res.json();
+  const res = await fetch(`${BASE}${path}`, init);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 export const api = {
-    /** Upload a book file and start illustration */
-    uploadBook(file, title, author) {
-        const form = new FormData();
-        form.append('file', file);
-        if (title)
-            form.append('title', title);
-        if (author)
-            form.append('author', author);
-        return apiFetch('/api/books', { method: 'POST', body: form });
-    },
-    /** List all books */
-    listBooks() {
-        return apiFetch('/api/books');
-    },
-    /** Get a single book's status */
-    getBook(id) {
-        return apiFetch(`/api/books/${id}`);
-    },
-    /** List chapters for a book */
-    listChapters(bookId) {
-        return apiFetch(`/api/books/${bookId}/chapters`);
-    },
-    /** URL to stream a chapter's illustration image */
-    chapterImgUrl(bookId, chapterNum) {
-        return `${BASE}/api/books/${bookId}/chapters/${chapterNum}/img`;
-    },
-    /** Delete a book and all its data */
-    deleteBook(id) {
-        return apiFetch(`/api/books/${id}`, { method: 'DELETE' });
-    },
+  /** Upload a book file and start illustration */
+  uploadBook(file, title, author) {
+    const form = new FormData();
+    form.append('file', file);
+    if (title) form.append('title', title);
+    if (author) form.append('author', author);
+    return apiFetch('/api/books', { method: 'POST', body: form });
+  },
+  /** List all books */
+  listBooks() {
+    return apiFetch('/api/books');
+  },
+  /** Get a single book's status */
+  getBook(id) {
+    return apiFetch(`/api/books/${id}`);
+  },
+  /** List chapters for a book */
+  listChapters(bookId) {
+    return apiFetch(`/api/books/${bookId}/chapters`);
+  },
+  /** URL to stream a chapter's illustration image */
+  chapterImgUrl(bookId, chapterNum) {
+    return `${BASE}/api/books/${bookId}/chapters/${chapterNum}/img`;
+  },
+  /** Delete a book and all its data */
+  deleteBook(id) {
+    return apiFetch(`/api/books/${id}`, { method: 'DELETE' });
+  },
 };

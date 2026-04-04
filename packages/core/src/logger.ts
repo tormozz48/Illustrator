@@ -10,7 +10,7 @@
  *     console.* so Workers Logs captures the structured output.
  */
 
-import pino from "pino";
+import pino from 'pino';
 
 export interface Logger {
   info(msg: string, meta?: Record<string, unknown>): void;
@@ -19,7 +19,7 @@ export interface Logger {
   debug(msg: string, meta?: Record<string, unknown>): void;
 }
 
-const pinoLoggerImpl = pino({ level: process.env["LOG_LEVEL"] ?? "info" });
+const pinoLoggerImpl = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
 /** Pino-backed default. Outputs NDJSON to stdout. */
 export const pinoLogger: Logger = {
