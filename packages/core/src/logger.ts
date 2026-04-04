@@ -24,20 +24,32 @@ const pinoLoggerImpl = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 /** Pino-backed default. Outputs NDJSON to stdout. */
 export const pinoLogger: Logger = {
   info(msg, meta) {
-    if (meta) pinoLoggerImpl.info(meta, msg);
-    else pinoLoggerImpl.info(msg);
+    if (meta) {
+      pinoLoggerImpl.info(meta, msg);
+    } else {
+      pinoLoggerImpl.info(msg);
+    }
   },
   warn(msg, meta) {
-    if (meta) pinoLoggerImpl.warn(meta, msg);
-    else pinoLoggerImpl.warn(msg);
+    if (meta) {
+      pinoLoggerImpl.warn(meta, msg);
+    } else {
+      pinoLoggerImpl.warn(msg);
+    }
   },
   error(msg, meta) {
-    if (meta) pinoLoggerImpl.error(meta, msg);
-    else pinoLoggerImpl.error(msg);
+    if (meta) {
+      pinoLoggerImpl.error(meta, msg);
+    } else {
+      pinoLoggerImpl.error(msg);
+    }
   },
   debug(msg, meta) {
-    if (meta) pinoLoggerImpl.debug(meta, msg);
-    else pinoLoggerImpl.debug(msg);
+    if (meta) {
+      pinoLoggerImpl.debug(meta, msg);
+    } else {
+      pinoLoggerImpl.debug(msg);
+    }
   },
 };
 

@@ -46,20 +46,32 @@ export const logger = {
     pinoLoggerImpl.level = v;
   },
   info(msg: string, meta?: Record<string, unknown>): void {
-    if (meta) pinoLoggerImpl.info(meta, msg);
-    else pinoLoggerImpl.info(msg);
+    if (meta) {
+      pinoLoggerImpl.info(meta, msg);
+    } else {
+      pinoLoggerImpl.info(msg);
+    }
   },
   warn(msg: string, meta?: Record<string, unknown>): void {
-    if (meta) pinoLoggerImpl.warn(meta, msg);
-    else pinoLoggerImpl.warn(msg);
+    if (meta) {
+      pinoLoggerImpl.warn(meta, msg);
+    } else {
+      pinoLoggerImpl.warn(msg);
+    }
   },
   error(msg: string, meta?: Record<string, unknown>): void {
-    if (meta) pinoLoggerImpl.error(meta, msg);
-    else pinoLoggerImpl.error(msg);
+    if (meta) {
+      pinoLoggerImpl.error(meta, msg);
+    } else {
+      pinoLoggerImpl.error(msg);
+    }
   },
   debug(msg: string, meta?: Record<string, unknown>): void {
-    if (meta) pinoLoggerImpl.debug(meta, msg);
-    else pinoLoggerImpl.debug(msg);
+    if (meta) {
+      pinoLoggerImpl.debug(meta, msg);
+    } else {
+      pinoLoggerImpl.debug(msg);
+    }
   },
 };
 

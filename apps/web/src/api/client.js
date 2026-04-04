@@ -22,10 +22,12 @@ export const api = {
     uploadBook(file, title, author) {
         const form = new FormData();
         form.append('file', file);
-        if (title)
+        if (title) {
             form.append('title', title);
-        if (author)
+        }
+        if (author) {
             form.append('author', author);
+        }
         return apiFetch('/api/books', { method: 'POST', body: form });
     },
     /** List all books */

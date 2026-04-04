@@ -13,7 +13,9 @@ export async function readBookStep({ setStatus, BOOKS_BUCKET, r2Key }: Ctx): Pro
   log.info('step.readBook.start', { r2Key });
   await setStatus('analyzing');
   const obj = await BOOKS_BUCKET.get(r2Key);
-  if (!obj) throw new Error(`R2 object not found: ${r2Key}`);
+  if (!obj) {
+    throw new Error(`R2 object not found: ${r2Key}`);
+  }
   const text = await obj.text();
   log.info('step.readBook.complete', { r2Key, chars: text.length });
   return text;

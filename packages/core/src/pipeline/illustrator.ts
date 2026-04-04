@@ -43,7 +43,9 @@ export function buildAnchorPrompt({
     ]
       .filter(Boolean)
       .join(', ');
-    if (details) subjectLine += ` — ${details}`;
+    if (details) {
+      subjectLine += ` — ${details}`;
+    }
   }
   if (distinctiveFeatures.length > 0) {
     subjectLine += `. Distinctive: ${distinctiveFeatures.join(', ')}`;
@@ -196,8 +198,8 @@ export async function illustrateChapter({
     try {
       imageBuffer = await client.generateImage(prompt, refs);
     } catch (err) {
-      logger.debug(
-        `ch${chapter.number} image gen failed: ${err instanceof Error ? err.message : String(err)}`
+      logger.error(
+        `ch${chapter.number} image gen failed (attempt ${attempt + 1}): ${err instanceof Error ? err.message : String(err)}`
       );
       break;
     }
@@ -217,7 +219,9 @@ export async function illustrateChapter({
       bestScore = validation.score;
     }
 
-    if (validation.score >= PASS_THRESHOLD) break;
+    if (validation.score >= PASS_THRESHOLD) {
+      break;
+    }
 
     suggestions = validation.suggestions ?? [];
   }
@@ -264,7 +268,9 @@ function buildEntityDescription(entity: CharacterBible['entities'][number]): str
     ]
       .filter(Boolean)
       .join(', ');
-    if (inline) desc += ` — ${inline}`;
+    if (inline) {
+      desc += ` — ${inline}`;
+    }
   }
   if (distinctiveFeatures.length > 0) {
     desc += `. Distinctive: ${distinctiveFeatures.join(', ')}`;

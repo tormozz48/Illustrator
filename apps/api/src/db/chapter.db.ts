@@ -29,7 +29,9 @@ export async function insertChapters(
       )
       .bind(bookId, c.number, c.title ?? '', c.content)
   );
-  if (statements.length > 0) await db.batch(statements);
+  if (statements.length > 0) {
+    await db.batch(statements);
+  }
 }
 
 export async function getChapterId(

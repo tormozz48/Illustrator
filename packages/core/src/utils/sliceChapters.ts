@@ -12,12 +12,16 @@ import type { RawChapter } from '../schemas/index.js';
 
 function findMarker(rawText: string, marker: string): number {
   const exact = rawText.indexOf(marker);
-  if (exact !== -1) return exact;
+  if (exact !== -1) {
+    return exact;
+  }
 
   const MIN_FUZZY = 10;
   for (let len = marker.length - 5; len >= MIN_FUZZY; len -= 5) {
     const prefix = marker.slice(0, len).trim();
-    if (prefix.length < MIN_FUZZY) break;
+    if (prefix.length < MIN_FUZZY) {
+      break;
+    }
     const idx = rawText.indexOf(prefix);
     if (idx !== -1) {
       getLogger().warn(`sliceChapters: exact marker not found, used ${len}-char fuzzy prefix`);
@@ -38,7 +42,9 @@ export function sliceChapters(rawText: string, boundaries: ChapterBoundary[]): R
     const boundary = boundaries[i];
     const start = startOffsets[i];
 
-    if (boundary === undefined || start === undefined) continue;
+    if (boundary === undefined || start === undefined) {
+      continue;
+    }
 
     if (start === -1) {
       logger.warn(

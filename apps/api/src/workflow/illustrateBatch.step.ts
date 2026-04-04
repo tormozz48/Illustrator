@@ -115,11 +115,15 @@ async function illustrateSingleChapter({
   }
 
   const chapterId = await getChapterId(DB, bookId, ch.number);
-  if (chapterId === null) return { chapterNumber: ch.number, imgR2Key: null };
+  if (chapterId === null) {
+    return { chapterNumber: ch.number, imgR2Key: null };
+  }
 
   await upsertAnchor(DB, chapterId, enriched.keyScene.insertAfterParagraph);
 
-  if (!enriched.illustration) return { chapterNumber: ch.number, imgR2Key: null };
+  if (!enriched.illustration) {
+    return { chapterNumber: ch.number, imgR2Key: null };
+  }
 
   const imgBuf = Buffer.from(enriched.illustration.imageBase64, 'base64');
   const imgR2Key = `books/${bookId}/chapters/${ch.number}/img.webp`;

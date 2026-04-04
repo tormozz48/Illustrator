@@ -54,8 +54,12 @@ export const api = {
   ): Promise<Pick<Book, 'id' | 'title' | 'status'>> {
     const form = new FormData();
     form.append('file', file);
-    if (title) form.append('title', title);
-    if (author) form.append('author', author);
+    if (title) {
+      form.append('title', title);
+    }
+    if (author) {
+      form.append('author', author);
+    }
     return apiFetch('/api/books', { method: 'POST', body: form });
   },
 

@@ -2,9 +2,7 @@ import type { CharacterBible, KeyScene, RawChapter, ValidationResult } from './s
 
 /**
  * Provider-agnostic AI client interface.
- *
- * Both GeminiClient and CloudflareAIClient implement this.
- * Pipeline stages depend only on this interface — never on a concrete provider.
+ * GeminiClient implements this — pipeline stages depend only on this interface.
  */
 export interface AIProvider {
   /** Full book text → structured Character Bible (JSON) */
@@ -20,9 +18,7 @@ export interface AIProvider {
    * Generate an image from a text prompt with optional reference images.
    *
    * @param prompt  Text description of the image to generate
-   * @param refs    Optional reference images for visual consistency (anchor portraits).
-   *                GeminiClient accepts inline base64 at any size.
-   *                CloudflareAIClient resizes each to 512×512 and caps at 4 images.
+   * @param refs    Optional reference images for visual consistency (anchor portraits)
    */
   generateImage(prompt: string, refs?: Buffer[]): Promise<Buffer>;
 

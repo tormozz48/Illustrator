@@ -142,7 +142,9 @@ export class GeminiClient implements AIProvider {
     });
 
     const candidate = result.candidates?.[0];
-    if (!candidate) throw new Error('No image candidate returned from Gemini');
+    if (!candidate) {
+      throw new Error('No image candidate returned from Gemini');
+    }
 
     for (const part of candidate.content?.parts ?? []) {
       if (part.inlineData?.data) {

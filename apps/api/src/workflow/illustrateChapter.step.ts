@@ -6,6 +6,10 @@ import {
   illustrateChapter,
 } from '@illustrator/core';
 
+import { getChapterId } from '../db/chapter.db.js';
+import { upsertAnchor } from '../db/anchor.db.js';
+import { upsertIllustration } from '../db/illustration.db.js';
+
 interface Ctx {
   readonly bookId: string;
   readonly ch: RawChapter;
@@ -38,42 +42,30 @@ export async function illustrateChapterStep({
     return null;
   }
 
-  // Persist anchor (key-scene location) to D1
-  const chRow = await DB.prepare('SELECT id FROM chapters WHERE book_id = ? AND number = ?')
-    .bind(bookId, ch.number)
-    .first<{ id: number }>();
+  const chapterId = await getChapterId(DB, bookId, ch.number);
+  if (!chapterId) {
+    return null;
+  }
 
-  if (!chRow) return null;
+  await upsertAnchor(DB, chapterId, enriched.keyScene.insertAfterParagraph);
 
-  await DB.prepare(
-    `INSERT OR REPLACE INTO anchors (chapter_id, insert_after_para, created_at)
-     VALUES (?, ?, datetime('now'))`
-  )
-    .bind(chRow.id, enriched.keyScene.insertAfterParagraph)
-    .run();
+  if (!enriched.illustration) {
+    return null;
+  }
 
-  if (!enriched.illustration) return null;
-
-  // Decode base64 and upload to R2
   const imgBuf = Buffer.from(enriched.illustration.imageBase64, 'base64');
   const imgR2Key = `books/${bookId}/chapters/${ch.number}/img.webp`;
   await BOOKS_BUCKET.put(imgR2Key, imgBuf, {
     httpMetadata: { contentType: 'image/webp' },
   });
 
-  await DB.prepare(
-    `INSERT OR REPLACE INTO illustrations
-     (chapter_id, r2_key, width, height, bytes, created_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))`
-  )
-    .bind(
-      chRow.id,
-      imgR2Key,
-      enriched.illustration.width,
-      enriched.illustration.height,
-      imgBuf.byteLength
-    )
-    .run();
+  await upsertIllustration(DB, {
+    chapterId,
+    r2Key: imgR2Key,
+    width: enriched.illustration.width,
+    height: enriched.illustration.height,
+    bytes: imgBuf.byteLength,
+  });
 
   return imgR2Key;
 }

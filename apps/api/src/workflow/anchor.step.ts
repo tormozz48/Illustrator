@@ -45,9 +45,10 @@ export async function anchorEntityStep({
     });
     return key;
   } catch (err) {
-    // Anchor generation is best-effort; don't fail the whole workflow
+    // Anchor generation is best-effort; don't fail the whole workflow.
+    // Log at ERROR so the failure is always visible in Worker Logs.
     const error = err instanceof Error ? err.message : String(err);
-    log.warn('step.anchor.skip', { bookId, entity: entity.name, error });
+    log.error('step.anchor.failed', { bookId, entity: entity.name, error });
     return null;
   }
 }

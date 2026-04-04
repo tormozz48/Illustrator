@@ -19,7 +19,9 @@ app.use(
   '/api/*',
   cors({
     origin: (origin) => {
-      if (!origin) return '*';
+      if (!origin) {
+        return '*';
+      }
       if (
         origin.startsWith('http://localhost:') ||
         origin.endsWith('.pages.dev') ||

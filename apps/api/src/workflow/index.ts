@@ -16,7 +16,7 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 
-import { CloudflareAIClient, getLogger, setLogger } from '@illustrator/core';
+import { GeminiClient, getLogger, setLogger } from '@illustrator/core';
 
 import { workersLogger } from '../logger.js';
 import type { Env, IllustrateJobMessage } from '../types.js';
@@ -34,14 +34,12 @@ import { makeSetStatus } from './setStatus.js';
 /**
  * Number of chapters to process concurrently within a single Workflow step.
  *
- * Workers AI calls via env.AI.run() are Cloudflare-internal and do NOT count
- * toward the 50 external subrequest limit per step (ADR-002). Only D1 and R2
- * writes count as external (1,000 limit — far more generous).
- *
- * With AI calls off the external budget, 5 concurrent chapters is safe:
- *   5 chapters × ~9 D1/R2 ops = ~45 external subrequests per step.
+ * Each chapter illustration makes external calls to Gemini (findKeyScene,
+ * generateImage, validateImage) plus D1/R2 writes. Cloudflare Workflows
+ * allow up to 50 external subrequests per step.
+ * 3 chapters × ~9 external ops = ~27 subrequests — safely within the limit.
  */
-const CHAPTER_CONCURRENCY = 5;
+const CHAPTER_CONCURRENCY = 3;
 
 // Replace the default consoleLogger with a structured JSON logger so all
 // core pipeline logs (analyzer, splitter, illustrator) and step-level logs
@@ -51,9 +49,9 @@ setLogger(workersLogger);
 export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJobMessage> {
   async run(event: WorkflowEvent<IllustrateJobMessage>, step: WorkflowStep) {
     const { bookId, r2Key } = event.payload;
-    const { DB, BOOKS_BUCKET, CACHE, AI } = this.env;
+    const { DB, BOOKS_BUCKET, CACHE, GEMINI_API_KEY } = this.env;
 
-    const client = new CloudflareAIClient({ ai: AI });
+    const client = new GeminiClient(GEMINI_API_KEY);
     const setStatus = makeSetStatus(DB, bookId);
     const log = getLogger();
     const startedAt = Date.now();
@@ -83,7 +81,9 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
         const anchorKey = await step.do(`anchor-${entity.name}`, () =>
           anchorEntityStep({ bookId, entity, bible, client, BOOKS_BUCKET })
         );
-        if (anchorKey) anchorR2Keys[entity.name] = anchorKey;
+        if (anchorKey) {
+          anchorR2Keys[entity.name] = anchorKey;
+        }
       }
 
       log.info('workflow.anchored', { bookId, anchorsGenerated: Object.keys(anchorR2Keys).length });

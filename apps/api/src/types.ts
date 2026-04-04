@@ -17,12 +17,8 @@ export interface Env {
   // Workflow
   ILLUSTRATE_WORKFLOW: Workflow;
 
-  // Workers AI — used by CloudflareAIClient in the workflow
-  AI: Ai;
-
   // Secrets
-  // GEMINI_API_KEY is no longer used in production; kept optional for CLI dev
-  GEMINI_API_KEY?: string;
+  GEMINI_API_KEY: string;
 }
 
 /** Message pushed onto the Cloudflare Queue */
