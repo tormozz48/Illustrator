@@ -1,31 +1,14 @@
 import { Hono } from 'hono';
-import type { Env, ChapterRow, AnchorRow, IllustrationRow } from '../types.js';
+
+import { listChaptersWithMeta } from '../db/chapter.db.js';
+import { getIllustrationR2Key } from '../db/illustration.db.js';
+import type { Env } from '../types.js';
 
 const chapters = new Hono<{ Bindings: Env }>();
 
 // ── GET /api/books/:id/chapters ──────────────────────────────────────────────
 chapters.get('/', async (c) => {
-  const bookId = c.req.param('id');
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT ch.id, ch.number, ch.title,
-            an.insert_after_para,
-            CASE WHEN il.chapter_id IS NOT NULL THEN 1 ELSE 0 END AS has_illustration
-     FROM chapters ch
-     LEFT JOIN anchors an ON an.chapter_id = ch.id
-     LEFT JOIN illustrations il ON il.chapter_id = ch.id
-     WHERE ch.book_id = ?
-     ORDER BY ch.number`
-  )
-    .bind(bookId)
-    .all<{
-      id: number;
-      number: number;
-      title: string;
-      insert_after_para: number | null;
-      has_illustration: number;
-    }>();
-
+  const results = await listChaptersWithMeta(c.env.DB, c.req.param('id'));
   return c.json(results);
 });
 
@@ -37,15 +20,7 @@ chapters.get('/:num/img', async (c) => {
 
   if (Number.isNaN(num)) return c.json({ error: 'Invalid chapter number' }, 400);
 
-  const row = await c.env.DB.prepare(
-    `SELECT il.r2_key
-     FROM illustrations il
-     JOIN chapters ch ON ch.id = il.chapter_id
-     WHERE ch.book_id = ? AND ch.number = ?`
-  )
-    .bind(bookId, num)
-    .first<{ r2_key: string }>();
-
+  const row = await getIllustrationR2Key(c.env.DB, bookId, num);
   if (!row) return c.json({ error: 'Illustration not found' }, 404);
 
   const obj = await c.env.BOOKS_BUCKET.get(row.r2_key);

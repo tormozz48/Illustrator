@@ -40,32 +40,4 @@ export interface BookRow {
   updated_at: string;
 }
 
-export interface ChapterRow {
-  id: number;
-  book_id: string;
-  number: number;
-  title: string;
-  content: string;
-  created_at: string;
-}
 
-export interface AnchorRow {
-  chapter_id: number;
-  insert_after_para: number;
-  created_at: string;
-}
-
-export interface IllustrationRow {
-  chapter_id: number;
-  r2_key: string;
-  width: number | null;
-  height: number | null;
-  bytes: number | null;
-  created_at: string;
-}
-
-export interface BibleRow {
-  book_id: string;
-  data: string; // JSON
-  created_at: string;
-}

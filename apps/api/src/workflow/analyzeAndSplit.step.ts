@@ -7,6 +7,8 @@ import {
   type RawChapter,
 } from "@illustrator/core";
 
+import { upsertBible } from '../db/bible.db.js';
+import { insertChapters } from '../db/chapter.db.js';
 import type { makeSetStatus } from "./setStatus.js";
 
 interface Ctx {
@@ -33,20 +35,8 @@ export async function analyzeAndSplitStep({
     splitIntoChapters(gemini, bookText),
   ]);
 
-  await DB.prepare(
-    `INSERT OR REPLACE INTO bibles (book_id, data, created_at)
-     VALUES (?, ?, datetime('now'))`
-  )
-    .bind(bookId, JSON.stringify(book))
-    .run();
-
-  const statements = chapters.map((c) =>
-    DB.prepare(
-      `INSERT OR IGNORE INTO chapters (book_id, number, title, content, created_at)
-       VALUES (?, ?, ?, ?, datetime('now'))`
-    ).bind(bookId, c.number, c.title ?? "", c.content)
-  );
-  if (statements.length > 0) await DB.batch(statements);
+  await upsertBible(DB, bookId, book);
+  await insertChapters(DB, bookId, chapters);
 
   log.info('step.analyzeAndSplit.complete', {
     bookId,

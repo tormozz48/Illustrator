@@ -7,6 +7,10 @@ import {
   illustrateChapter,
 } from '@illustrator/core';
 
+import { upsertAnchor } from '../db/anchor.db.js';
+import { getChapterId } from '../db/chapter.db.js';
+import { upsertIllustration } from '../db/illustration.db.js';
+
 interface Ctx {
   readonly bookId: string;
   readonly chapters: RawChapter[];
@@ -79,7 +83,7 @@ export async function illustrateBatchStep({
   return mapped;
 }
 
-// ── Single chapter processing (same logic as illustrateChapter.step.ts) ──────
+// ── Single chapter processing ─────────────────────────────────────────────────
 
 async function illustrateSingleChapter({
   bookId,
@@ -107,46 +111,29 @@ async function illustrateSingleChapter({
       anchorImages,
     });
   } catch {
-    // If illustration fails for a chapter, skip it gracefully
     return { chapterNumber: ch.number, imgR2Key: null };
   }
 
-  // Persist key-scene location to D1
-  const chRow = await DB.prepare('SELECT id FROM chapters WHERE book_id = ? AND number = ?')
-    .bind(bookId, ch.number)
-    .first<{ id: number }>();
+  const chapterId = await getChapterId(DB, bookId, ch.number);
+  if (chapterId === null) return { chapterNumber: ch.number, imgR2Key: null };
 
-  if (!chRow) return { chapterNumber: ch.number, imgR2Key: null };
-
-  await DB.prepare(
-    `INSERT OR REPLACE INTO anchors (chapter_id, insert_after_para, created_at)
-     VALUES (?, ?, datetime('now'))`
-  )
-    .bind(chRow.id, enriched.keyScene.insertAfterParagraph)
-    .run();
+  await upsertAnchor(DB, chapterId, enriched.keyScene.insertAfterParagraph);
 
   if (!enriched.illustration) return { chapterNumber: ch.number, imgR2Key: null };
 
-  // Decode base64 and upload to R2
   const imgBuf = Buffer.from(enriched.illustration.imageBase64, 'base64');
   const imgR2Key = `books/${bookId}/chapters/${ch.number}/img.webp`;
   await BOOKS_BUCKET.put(imgR2Key, imgBuf, {
     httpMetadata: { contentType: 'image/webp' },
   });
 
-  await DB.prepare(
-    `INSERT OR REPLACE INTO illustrations
-     (chapter_id, r2_key, width, height, bytes, created_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))`
-  )
-    .bind(
-      chRow.id,
-      imgR2Key,
-      enriched.illustration.width,
-      enriched.illustration.height,
-      imgBuf.byteLength
-    )
-    .run();
+  await upsertIllustration(DB, {
+    chapterId,
+    r2Key: imgR2Key,
+    width: enriched.illustration.width,
+    height: enriched.illustration.height,
+    bytes: imgBuf.byteLength,
+  });
 
   return { chapterNumber: ch.number, imgR2Key };
 }

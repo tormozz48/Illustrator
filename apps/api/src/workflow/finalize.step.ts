@@ -1,5 +1,8 @@
 import { getLogger } from "@illustrator/core";
 
+import { markBookDone } from '../db/book.db.js';
+import { markJobComplete } from '../db/job.db.js';
+
 interface Ctx {
   readonly bookId: string;
   readonly htmlR2Key: string;
@@ -14,22 +17,8 @@ export async function finalizeStep({
   CACHE,
 }: Ctx): Promise<void> {
   const log = getLogger();
-  await DB.prepare(
-    `UPDATE books
-     SET status = 'done', html_r2_key = ?, error_msg = NULL, updated_at = datetime('now')
-     WHERE id = ?`
-  )
-    .bind(htmlR2Key, bookId)
-    .run();
-
-  await DB.prepare(
-    `UPDATE jobs SET workflow_status = 'complete', finished_at = datetime('now') WHERE id = ?`
-  )
-    .bind(`illustrate-${bookId}`)
-    .run();
-
-  // Invalidate any cached HTML
+  await markBookDone(DB, bookId, htmlR2Key);
+  await markJobComplete(DB, `illustrate-${bookId}`);
   await CACHE.delete(`html:${bookId}`);
-
   log.info('step.finalize.complete', { bookId, htmlR2Key });
 }

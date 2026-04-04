@@ -21,6 +21,8 @@ import { GeminiClient, getLogger, setLogger } from '@illustrator/core';
 import { workersLogger } from '../logger.js';
 import type { Env, IllustrateJobMessage } from '../types.js';
 
+import { updateBookStatus } from '../db/book.db.js';
+import { markJobErrored } from '../db/job.db.js';
 import { analyzeAndSplitStep } from './analyzeAndSplit.step.js';
 import { anchorEntityStep } from './anchor.step.js';
 import { assembleStep } from './assemble.step.js';
@@ -139,16 +141,8 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log.error('workflow.error', { bookId, error: msg, durationMs: Date.now() - startedAt });
-      await DB.prepare(
-        `UPDATE books SET status = 'error', error_msg = ?, updated_at = datetime('now') WHERE id = ?`
-      )
-        .bind(msg, bookId)
-        .run();
-      await DB.prepare(
-        `UPDATE jobs SET workflow_status = 'errored', finished_at = datetime('now') WHERE id = ?`
-      )
-        .bind(`illustrate-${bookId}`)
-        .run();
+      await updateBookStatus(DB, bookId, 'error', msg);
+      await markJobErrored(DB, `illustrate-${bookId}`);
       throw err; // re-throw so Workflow marks the run as errored
     }
   }

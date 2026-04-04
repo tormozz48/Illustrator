@@ -83,3 +83,21 @@ Examples of comments to avoid:
 - The HTML output embeds images as base64 — can be large for books with many chapters and high concurrency.
 - Gemini image generation is rate-limited; keep `--concurrency` low (≤3) unless you have a paid quota.
 - `src/templates/book.eta` uses ETA syntax (`<%= %>`, `<% %>`); not Handlebars or Mustache.
+
+## Database Layer (`apps/api`)
+
+All D1 SQL lives in `apps/api/src/db/`, one file per table. No raw `DB.prepare()` calls outside of these files.
+
+| File | Table | Exported functions |
+|---|---|---|
+| `book.db.ts` | `books` | `insertBook`, `listBooks`, `getBook`, `getBookReadInfo`, `getBookR2Keys`, `getBookMeta`, `updateBookStatus`, `markBookDone`, `deleteBook` |
+| `bible.db.ts` | `bibles` | `upsertBible` |
+| `chapter.db.ts` | `chapters` | `insertChapters`, `getChapterId`, `listChaptersWithMeta`, `listChaptersForAssemble` |
+| `anchor.db.ts` | `anchors` | `upsertAnchor` |
+| `illustration.db.ts` | `illustrations` | `upsertIllustration`, `getIllustrationR2Key`, `listIllustrationR2KeysByBook` |
+| `job.db.ts` | `jobs` | `insertJob`, `markJobComplete`, `markJobErrored` |
+
+Rules:
+- Add new queries to the matching `*.db.ts` file. If a query spans multiple tables, put it in the file for the primary (driving) table.
+- `chapter.db.ts` owns the complex LEFT JOIN queries over `chapters + anchors + illustrations` — `listChaptersWithMeta` (API use, no content) and `listChaptersForAssemble` (workflow use, includes content).
+- `workflow/setStatus.ts` is a thin factory over `bookDb.updateBookStatus`; keep it for ergonomics in step files.

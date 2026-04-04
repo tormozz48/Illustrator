@@ -1,5 +1,7 @@
 import { assembleWebHtml, getLogger, type CharacterBible } from "@illustrator/core";
 
+import { getBookMeta } from '../db/book.db.js';
+import { listChaptersForAssemble } from '../db/chapter.db.js';
 import type { makeSetStatus } from "./setStatus.js";
 
 interface Ctx {
@@ -21,30 +23,8 @@ export async function assembleStep({
   log.info('step.assemble.start', { bookId });
   await setStatus("assembling");
 
-  const bookRow = await DB.prepare(
-    `SELECT title, author FROM books WHERE id = ?`
-  )
-    .bind(bookId)
-    .first<{ title: string; author: string | null }>();
-
-  const { results: chRows } = await DB.prepare(
-    `SELECT ch.number, ch.title, ch.content,
-            an.insert_after_para,
-            CASE WHEN il.chapter_id IS NOT NULL THEN 1 ELSE 0 END AS has_illustration
-     FROM chapters ch
-     LEFT JOIN anchors an ON an.chapter_id = ch.id
-     LEFT JOIN illustrations il ON il.chapter_id = ch.id
-     WHERE ch.book_id = ?
-     ORDER BY ch.number`
-  )
-    .bind(bookId)
-    .all<{
-      number: number;
-      title: string;
-      content: string;
-      insert_after_para: number | null;
-      has_illustration: number;
-    }>();
+  const bookRow = await getBookMeta(DB, bookId);
+  const chRows = await listChaptersForAssemble(DB, bookId);
 
   const webChapters = chRows.map((row) => ({
     number: row.number,

@@ -8,6 +8,7 @@
 
 import { getLogger } from '@illustrator/core';
 
+import { insertJob } from './db/job.db.js';
 import type { Env, IllustrateJobMessage } from './types.js';
 
 export async function handleQueue(
@@ -27,13 +28,7 @@ export async function handleQueue(
         params: { bookId, r2Key },
       });
 
-      // Record job in D1
-      await env.DB.prepare(
-        `INSERT OR IGNORE INTO jobs (id, book_id, workflow_status, started_at, created_at)
-         VALUES (?, ?, 'running', datetime('now'), datetime('now'))`
-      )
-        .bind(instance.id, bookId)
-        .run();
+      await insertJob(env.DB, instance.id, bookId);
 
       log.info('queue.workflow.started', { bookId, instanceId: instance.id });
       msg.ack();

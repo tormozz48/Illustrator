@@ -1,9 +1,5 @@
+import { updateBookStatus } from '../db/book.db.js';
+
 export function makeSetStatus(DB: D1Database, bookId: string) {
-  return async (status: string, errorMsg?: string) => {
-    await DB.prepare(
-      `UPDATE books SET status = ?, error_msg = ?, updated_at = datetime('now') WHERE id = ?`
-    )
-      .bind(status, errorMsg ?? null, bookId)
-      .run();
-  };
+  return (status: string, errorMsg?: string) => updateBookStatus(DB, bookId, status, errorMsg);
 }

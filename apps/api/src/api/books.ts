@@ -1,7 +1,17 @@
 import { getLogger } from '@illustrator/core';
 import { Hono } from 'hono';
 import { nanoid } from 'nanoid';
-import type { Env, BookRow } from '../types.js';
+
+import {
+  deleteBook,
+  getBook,
+  getBookR2Keys,
+  getBookReadInfo,
+  insertBook,
+  listBooks,
+} from '../db/book.db.js';
+import { listIllustrationR2KeysByBook } from '../db/illustration.db.js';
+import type { Env } from '../types.js';
 
 const books = new Hono<{ Bindings: Env }>();
 
@@ -43,13 +53,7 @@ books.post('/', async (c) => {
     httpMetadata: { contentType: 'text/plain; charset=utf-8' },
   });
 
-  // Insert book row
-  await c.env.DB.prepare(
-    `INSERT INTO books (id, title, author, status, r2_key, created_at, updated_at)
-     VALUES (?, ?, ?, 'pending', ?, datetime('now'), datetime('now'))`
-  )
-    .bind(bookId, derivedTitle, author ?? null, r2Key)
-    .run();
+  await insertBook(c.env.DB, { id: bookId, title: derivedTitle, author: author ?? null, r2Key });
 
   // Push to queue (the queue consumer will start the Workflow)
   await c.env.ILLUSTRATE_QUEUE.send({ bookId, r2Key });
@@ -66,24 +70,12 @@ books.post('/', async (c) => {
 
 // ── GET /api/books ───────────────────────────────────────────────────────────
 books.get('/', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, title, author, status, error_msg, created_at, updated_at
-     FROM books ORDER BY created_at DESC LIMIT 50`
-  ).all<BookRow>();
-
-  return c.json(results);
+  return c.json(await listBooks(c.env.DB));
 });
 
 // ── GET /api/books/:id ───────────────────────────────────────────────────────
 books.get('/:id', async (c) => {
-  const id = c.req.param('id');
-  const row = await c.env.DB.prepare(
-    `SELECT id, title, author, status, error_msg, created_at, updated_at
-     FROM books WHERE id = ?`
-  )
-    .bind(id)
-    .first<BookRow>();
-
+  const row = await getBook(c.env.DB, c.req.param('id'));
   if (!row) return c.json({ error: 'Not found' }, 404);
   return c.json(row);
 });
@@ -103,12 +95,7 @@ books.get('/:id/read', async (c) => {
     });
   }
 
-  const row = await c.env.DB.prepare(
-    `SELECT status, html_r2_key FROM books WHERE id = ?`
-  )
-    .bind(id)
-    .first<{ status: string; html_r2_key: string | null }>();
-
+  const row = await getBookReadInfo(c.env.DB, id);
   if (!row) return c.json({ error: 'Not found' }, 404);
   if (row.status !== 'done') {
     return c.json({ error: 'Book not ready yet', status: row.status }, 409);
@@ -135,12 +122,7 @@ books.get('/:id/read', async (c) => {
 books.delete('/:id', async (c) => {
   const id = c.req.param('id');
 
-  const row = await c.env.DB.prepare(
-    `SELECT r2_key, html_r2_key FROM books WHERE id = ?`
-  )
-    .bind(id)
-    .first<{ r2_key: string | null; html_r2_key: string | null }>();
-
+  const row = await getBookR2Keys(c.env.DB, id);
   if (!row) return c.json({ error: 'Not found' }, 404);
 
   // Delete R2 objects (best-effort)
@@ -148,15 +130,7 @@ books.delete('/:id', async (c) => {
   if (row.r2_key) keysToDelete.push(row.r2_key);
   if (row.html_r2_key) keysToDelete.push(row.html_r2_key);
 
-  // Also delete chapter images
-  const { results: illRows } = await c.env.DB.prepare(
-    `SELECT il.r2_key FROM illustrations il
-     JOIN chapters ch ON ch.id = il.chapter_id
-     WHERE ch.book_id = ?`
-  )
-    .bind(id)
-    .all<{ r2_key: string }>();
-
+  const illRows = await listIllustrationR2KeysByBook(c.env.DB, id);
   for (const il of illRows) keysToDelete.push(il.r2_key);
 
   await Promise.allSettled(
@@ -164,7 +138,7 @@ books.delete('/:id', async (c) => {
   );
 
   // Cascade deletes handle DB cleanup (FK ON DELETE CASCADE)
-  await c.env.DB.prepare(`DELETE FROM books WHERE id = ?`).bind(id).run();
+  await deleteBook(c.env.DB, id);
 
   // Invalidate KV cache
   await c.env.CACHE.delete(`html:${id}`);
