@@ -10,7 +10,7 @@
  *     console.* so Workers Logs captures the structured output.
  */
 
-import pino from 'pino';
+import pino from "pino";
 
 export interface Logger {
   info(msg: string, meta?: Record<string, unknown>): void;
@@ -19,39 +19,39 @@ export interface Logger {
   debug(msg: string, meta?: Record<string, unknown>): void;
 }
 
-const _pino = pino({ level: process.env['LOG_LEVEL'] ?? 'info' });
+const pinoLoggerImpl = pino({ level: process.env["LOG_LEVEL"] ?? "info" });
 
 /** Pino-backed default. Outputs NDJSON to stdout. */
 export const pinoLogger: Logger = {
   info(msg, meta) {
-    if (meta) _pino.info(meta, msg);
-    else _pino.info(msg);
+    if (meta) pinoLoggerImpl.info(meta, msg);
+    else pinoLoggerImpl.info(msg);
   },
   warn(msg, meta) {
-    if (meta) _pino.warn(meta, msg);
-    else _pino.warn(msg);
+    if (meta) pinoLoggerImpl.warn(meta, msg);
+    else pinoLoggerImpl.warn(msg);
   },
   error(msg, meta) {
-    if (meta) _pino.error(meta, msg);
-    else _pino.error(msg);
+    if (meta) pinoLoggerImpl.error(meta, msg);
+    else pinoLoggerImpl.error(msg);
   },
   debug(msg, meta) {
-    if (meta) _pino.debug(meta, msg);
-    else _pino.debug(msg);
+    if (meta) pinoLoggerImpl.debug(meta, msg);
+    else pinoLoggerImpl.debug(msg);
   },
 };
 
-let _current: Logger = pinoLogger;
+let current: Logger = pinoLogger;
 
 /**
  * Replace the global logger used by all core modules.
  * Call once at application startup before any pipeline function runs.
  */
 export function setLogger(logger: Logger): void {
-  _current = logger;
+  current = logger;
 }
 
 /** Get the currently configured logger. */
 export function getLogger(): Logger {
-  return _current;
+  return current;
 }

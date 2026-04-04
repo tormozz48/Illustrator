@@ -7,8 +7,8 @@
  * Import this module early (before any pipeline functions run) so that
  * core's getLogger() returns this Pino instance instead of consoleLogger.
  */
-import { type Logger, setLogger } from '@illustrator/core';
-import pino from 'pino';
+import { type Logger, setLogger } from "@illustrator/core";
+import pino from "pino";
 
 export interface Spinner {
   start(msg: string): void;
@@ -18,20 +18,21 @@ export interface Spinner {
 }
 
 const isJson =
-  process.env['LOG_FORMAT'] === 'json' || process.env['NODE_ENV'] === 'production';
+  process.env["LOG_FORMAT"] === "json" ||
+  process.env["NODE_ENV"] === "production";
 
-const _pino = pino({
-  level: process.env['LOG_LEVEL'] ?? 'info',
-  base: { service: 'bookillust' },
+const pinoLoggerImpl = pino({
+  level: process.env["LOG_LEVEL"] ?? "info",
+  base: { service: "bookillust" },
   ...(isJson
     ? {}
     : {
         transport: {
-          target: 'pino-pretty',
+          target: "pino-pretty",
           options: {
             colorize: true,
-            translateTime: 'HH:mm:ss',
-            ignore: 'pid,hostname',
+            translateTime: "HH:mm:ss",
+            ignore: "pid,hostname",
           },
         },
       }),
@@ -41,26 +42,26 @@ const _pino = pino({
 // Also exposes a `level` property so callers can do `logger.level = 'debug'`.
 export const logger = {
   get level(): string {
-    return _pino.level;
+    return pinoLoggerImpl.level;
   },
   set level(v: string) {
-    _pino.level = v;
+    pinoLoggerImpl.level = v;
   },
   info(msg: string, meta?: Record<string, unknown>): void {
-    if (meta) _pino.info(meta, msg);
-    else _pino.info(msg);
+    if (meta) pinoLoggerImpl.info(meta, msg);
+    else pinoLoggerImpl.info(msg);
   },
   warn(msg: string, meta?: Record<string, unknown>): void {
-    if (meta) _pino.warn(meta, msg);
-    else _pino.warn(msg);
+    if (meta) pinoLoggerImpl.warn(meta, msg);
+    else pinoLoggerImpl.warn(msg);
   },
   error(msg: string, meta?: Record<string, unknown>): void {
-    if (meta) _pino.error(meta, msg);
-    else _pino.error(msg);
+    if (meta) pinoLoggerImpl.error(meta, msg);
+    else pinoLoggerImpl.error(msg);
   },
   debug(msg: string, meta?: Record<string, unknown>): void {
-    if (meta) _pino.debug(meta, msg);
-    else _pino.debug(msg);
+    if (meta) pinoLoggerImpl.debug(meta, msg);
+    else pinoLoggerImpl.debug(msg);
   },
 };
 
