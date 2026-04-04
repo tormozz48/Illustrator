@@ -1,14 +1,16 @@
 /**
- * Portable logger abstraction for @illustrator/core.
+ * Portable logger for @illustrator/core.
  *
- * Core never imports Winston, chalk, or any platform-specific logger.
- * Instead it uses this interface + a module-level registry that apps can
- * override at startup by calling setLogger().
+ * Uses pino as the built-in default so all modules get structured JSON out
+ * of the box — no setup required for plain Node.js usage.
  *
- * - CLI: calls setLogger(winstonLogger) before anything else.
- * - Cloudflare Workflow: uses the default consoleLogger (console.* calls
- *   are forwarded to Workers Logs automatically).
+ * Platform overrides at app startup:
+ *   - CLI: setLogger(pinoLogger) with pino-pretty transport for human output.
+ *   - Cloudflare Worker: setLogger(workersLogger) which routes through
+ *     console.* so Workers Logs captures the structured output.
  */
+
+import pino from 'pino';
 
 export interface Logger {
   info(msg: string, meta?: Record<string, unknown>): void;
@@ -17,30 +19,33 @@ export interface Logger {
   debug(msg: string, meta?: Record<string, unknown>): void;
 }
 
-/** Simple console-based default. Works in Node.js and Cloudflare Workers. */
-export const consoleLogger: Logger = {
-  info(msg) {
-    console.log(`[INFO] ${msg}`);
+const _pino = pino({ level: process.env['LOG_LEVEL'] ?? 'info' });
+
+/** Pino-backed default. Outputs NDJSON to stdout. */
+export const pinoLogger: Logger = {
+  info(msg, meta) {
+    if (meta) _pino.info(meta, msg);
+    else _pino.info(msg);
   },
-  warn(msg) {
-    console.warn(`[WARN] ${msg}`);
+  warn(msg, meta) {
+    if (meta) _pino.warn(meta, msg);
+    else _pino.warn(msg);
   },
-  error(msg) {
-    console.error(`[ERROR] ${msg}`);
+  error(msg, meta) {
+    if (meta) _pino.error(meta, msg);
+    else _pino.error(msg);
   },
-  debug(msg) {
-    // Skip debug in default impl to avoid noise; apps can override.
-    if (process.env['DEBUG'] === '1') {
-      console.debug(`[DEBUG] ${msg}`);
-    }
+  debug(msg, meta) {
+    if (meta) _pino.debug(meta, msg);
+    else _pino.debug(msg);
   },
 };
 
-let _current: Logger = consoleLogger;
+let _current: Logger = pinoLogger;
 
 /**
  * Replace the global logger used by all core modules.
- * Call this once at application startup before any pipeline function runs.
+ * Call once at application startup before any pipeline function runs.
  */
 export function setLogger(logger: Logger): void {
   _current = logger;

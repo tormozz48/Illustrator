@@ -1,3 +1,4 @@
+import { getLogger } from '@illustrator/core';
 import { Hono } from 'hono';
 import { nanoid } from 'nanoid';
 import type { Env, BookRow } from '../types.js';
@@ -53,6 +54,13 @@ books.post('/', async (c) => {
   // Push to queue (the queue consumer will start the Workflow)
   await c.env.ILLUSTRATE_QUEUE.send({ bookId, r2Key });
 
+  getLogger().info('api.book.upload', {
+    bookId,
+    title: derivedTitle,
+    fileSizeBytes: uploadedFile.size,
+    r2Key,
+  });
+
   return c.json({ id: bookId, title: derivedTitle, status: 'pending' }, 201);
 });
 
@@ -89,6 +97,7 @@ books.get('/:id/read', async (c) => {
   const cacheKey = `html:${id}`;
   const cached = await c.env.CACHE.get(cacheKey);
   if (cached) {
+    getLogger().info('api.book.read.cacheHit', { bookId: id });
     return new Response(cached, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
@@ -115,6 +124,7 @@ books.get('/:id/read', async (c) => {
 
   // Cache for 1 hour
   await c.env.CACHE.put(cacheKey, html, { expirationTtl: 3600 });
+  getLogger().info('api.book.read.cacheMiss', { bookId: id });
 
   return new Response(html, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },

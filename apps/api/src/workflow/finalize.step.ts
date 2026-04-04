@@ -1,3 +1,5 @@
+import { getLogger } from "@illustrator/core";
+
 interface Ctx {
   readonly bookId: string;
   readonly htmlR2Key: string;
@@ -11,6 +13,7 @@ export async function finalizeStep({
   DB,
   CACHE,
 }: Ctx): Promise<void> {
+  const log = getLogger();
   await DB.prepare(
     `UPDATE books
      SET status = 'done', html_r2_key = ?, error_msg = NULL, updated_at = datetime('now')
@@ -27,4 +30,6 @@ export async function finalizeStep({
 
   // Invalidate any cached HTML
   await CACHE.delete(`html:${bookId}`);
+
+  log.info('step.finalize.complete', { bookId, htmlR2Key });
 }

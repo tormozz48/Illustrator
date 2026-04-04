@@ -1,10 +1,15 @@
+import { getLogger, setLogger } from '@illustrator/core';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { books } from './api/books.js';
 import { chapters } from './api/chapters.js';
 import { handleQueue } from './queue.js';
 import type { Env, IllustrateJobMessage } from './types.js';
+import { workersLogger } from './logger.js';
 import type { ExportedHandler } from '@cloudflare/workers-types';
+
+// Route all core logging through console.* so Workers Logs captures it.
+setLogger(workersLogger);
 
 export { IllustrateBookWorkflow } from './workflow/index.js';
 
@@ -38,7 +43,11 @@ app.get('/api/health', (c) => c.json({ ok: true, ts: new Date().toISOString() })
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
 app.onError((err, c) => {
-  console.error(err);
+  getLogger().error('api.unhandledError', {
+    error: err.message,
+    path: c.req.path,
+    method: c.req.method,
+  });
   return c.json({ error: 'Internal server error' }, 500);
 });
 

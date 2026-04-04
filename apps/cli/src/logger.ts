@@ -1,15 +1,14 @@
 /**
- * CLI logger — Winston implementation of @illustrator/core's Logger interface.
+ * CLI logger — Pino implementation of @illustrator/core's Logger interface.
  *
- * This module has two jobs:
- *   1. Create a pretty Winston logger for CLI output.
- *   2. Register it as the global logger for all core modules via setLogger().
+ * - Pretty (colorized) output in CLI mode (default).
+ * - Raw NDJSON when LOG_FORMAT=json or NODE_ENV=production.
  *
- * Import this module early (before any pipeline functions are called) so that
- * core's getLogger() returns Winston instead of the default consoleLogger.
+ * Import this module early (before any pipeline functions run) so that
+ * core's getLogger() returns this Pino instance instead of consoleLogger.
  */
 import { type Logger, setLogger } from '@illustrator/core';
-import { createLogger, format, transports } from 'winston';
+import pino from 'pino';
 
 export interface Spinner {
   start(msg: string): void;
@@ -18,67 +17,69 @@ export interface Spinner {
   fail(msg: string): void;
 }
 
+const isJson =
+  process.env['LOG_FORMAT'] === 'json' || process.env['NODE_ENV'] === 'production';
+
+const _pino = pino({
+  level: process.env['LOG_LEVEL'] ?? 'info',
+  base: { service: 'bookillust' },
+  ...(isJson
+    ? {}
+    : {
+        transport: {
+          target: 'pino-pretty',
+          options: {
+            colorize: true,
+            translateTime: 'HH:mm:ss',
+            ignore: 'pid,hostname',
+          },
+        },
+      }),
+});
+
+// Thin wrapper matching the (msg, meta?) call convention used throughout the app.
+// Also exposes a `level` property so callers can do `logger.level = 'debug'`.
+export const logger = {
+  get level(): string {
+    return _pino.level;
+  },
+  set level(v: string) {
+    _pino.level = v;
+  },
+  info(msg: string, meta?: Record<string, unknown>): void {
+    if (meta) _pino.info(meta, msg);
+    else _pino.info(msg);
+  },
+  warn(msg: string, meta?: Record<string, unknown>): void {
+    if (meta) _pino.warn(meta, msg);
+    else _pino.warn(msg);
+  },
+  error(msg: string, meta?: Record<string, unknown>): void {
+    if (meta) _pino.error(meta, msg);
+    else _pino.error(msg);
+  },
+  debug(msg: string, meta?: Record<string, unknown>): void {
+    if (meta) _pino.debug(meta, msg);
+    else _pino.debug(msg);
+  },
+};
+
 export function createSpinner(): Spinner {
   return {
-    start(msg: string) {
-      winstonLogger.info(`⟳  ${msg}`);
+    start(msg) {
+      logger.info(`⟳  ${msg}`);
     },
-    succeed(msg: string) {
-      winstonLogger.info(`✓  ${msg}`);
+    succeed(msg) {
+      logger.info(`✓  ${msg}`);
     },
-    warn(msg: string) {
-      winstonLogger.warn(`⚠  ${msg}`);
+    warn(msg) {
+      logger.warn(`⚠  ${msg}`);
     },
-    fail(msg: string) {
-      winstonLogger.error(`✗  ${msg}`);
+    fail(msg) {
+      logger.error(`✗  ${msg}`);
     },
   };
 }
 
-// Use JSON format when explicitly requested or running in production.
-const isJson =
-  process.env['LOG_FORMAT'] === 'json' || process.env['NODE_ENV'] === 'production';
-
-const cliFormat = format.combine(
-  format.colorize({ level: true }),
-  format.timestamp({ format: 'HH:mm:ss' }),
-  format.printf(
-    ({ timestamp, level, message }) => `${timestamp} ${level} ${message}`
-  )
-);
-
-const jsonFormat = format.combine(
-  format.timestamp(),
-  format.errors({ stack: true }),
-  format.json()
-);
-
-export const winstonLogger = createLogger({
-  level: process.env['LOG_LEVEL'] ?? 'info',
-  format: isJson ? jsonFormat : cliFormat,
-  defaultMeta: { service: 'bookillust' },
-  transports: [new transports.Console()],
-});
-
-// Adapt Winston to core's Logger interface and register it globally.
-// All core modules (GeminiClient, llmRetry, sliceChapters, etc.) will now
-// use this Winston instance whenever they call getLogger().
-const coreLogger: Logger = {
-  info(msg, meta) {
-    winstonLogger.info(msg, meta);
-  },
-  warn(msg, meta) {
-    winstonLogger.warn(msg, meta);
-  },
-  error(msg, meta) {
-    winstonLogger.error(msg, meta);
-  },
-  debug(msg, meta) {
-    winstonLogger.debug(msg, meta);
-  },
-};
-
-setLogger(coreLogger);
-
-// Also export a plain `logger` alias so existing import patterns in this app work.
-export const logger = winstonLogger;
+// Register with core so all pipeline modules use this logger.
+setLogger(logger as Logger);

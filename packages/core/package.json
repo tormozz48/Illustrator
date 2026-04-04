@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.48.0",
+    "pino": "^9.0.0",
     "eta": "^3.5.0",
     "jimp": "^1.6.0",
     "p-map": "^7.0.2",

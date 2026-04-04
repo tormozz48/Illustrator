@@ -1,5 +1,6 @@
 import {
   buildAnchorPrompt,
+  getLogger,
   type GeminiClient,
   type CharacterBible,
 } from "@illustrator/core";
@@ -21,6 +22,9 @@ export async function anchorEntityStep({
   gemini,
   BOOKS_BUCKET,
 }: Ctx): Promise<string | null> {
+  const log = getLogger();
+  log.info('step.anchor.start', { bookId, entity: entity.name });
+
   const prompt = buildAnchorPrompt({
     entity,
     stylePrefix: bible.styleGuide.stylePrefix,
@@ -33,9 +37,12 @@ export async function anchorEntityStep({
     await BOOKS_BUCKET.put(key, imgBuf, {
       httpMetadata: { contentType: "image/webp" },
     });
+    log.info('step.anchor.complete', { bookId, entity: entity.name, r2Key: key, bytes: imgBuf.byteLength });
     return key;
-  } catch {
+  } catch (err) {
     // Anchor generation is best-effort; don't fail the whole workflow
+    const error = err instanceof Error ? err.message : String(err);
+    log.warn('step.anchor.skip', { bookId, entity: entity.name, error });
     return null;
   }
 }

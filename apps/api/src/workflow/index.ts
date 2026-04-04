@@ -16,8 +16,9 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 
-import { GeminiClient, consoleLogger, setLogger } from '@illustrator/core';
+import { GeminiClient, getLogger, setLogger } from '@illustrator/core';
 
+import { workersLogger } from '../logger.js';
 import type { Env, IllustrateJobMessage } from '../types.js';
 
 import { analyzeAndSplitStep } from './analyzeAndSplit.step.js';
@@ -39,8 +40,10 @@ import { makeSetStatus } from './setStatus.js';
  */
 const CHAPTER_CONCURRENCY = 3;
 
-// Use the built-in console logger (no Winston in Workers)
-setLogger(consoleLogger);
+// Replace the default consoleLogger with a structured JSON logger so all
+// core pipeline logs (analyzer, splitter, illustrator) and step-level logs
+// emit newline-delimited JSON that Workers Logs + Query Builder can parse.
+setLogger(workersLogger);
 
 export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJobMessage> {
   async run(event: WorkflowEvent<IllustrateJobMessage>, step: WorkflowStep) {
@@ -49,14 +52,26 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
 
     const gemini = new GeminiClient(GEMINI_API_KEY);
     const setStatus = makeSetStatus(DB, bookId);
+    const log = getLogger();
+    const startedAt = Date.now();
+
+    log.info('workflow.start', { bookId, r2Key });
 
     try {
       const bookText = await step.do('read-book', () =>
         readBookStep({ setStatus, BOOKS_BUCKET, r2Key })
       );
+
       const [bible, rawChapters] = await step.do('analyze-and-split', () =>
         analyzeAndSplitStep({ setStatus, gemini, bookText, bookId, DB })
       );
+
+      log.info('workflow.analyzed', {
+        bookId,
+        chapterCount: rawChapters.length,
+        primaryEntityCount: bible.entities.filter((e) => e.importance === 'primary').length,
+        totalEntityCount: bible.entities.length,
+      });
 
       await setStatus('anchoring');
       const anchorR2Keys: Record<string, string> = {};
@@ -67,6 +82,8 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
         );
         if (anchorKey) anchorR2Keys[entity.name] = anchorKey;
       }
+
+      log.info('workflow.anchored', { bookId, anchorsGenerated: Object.keys(anchorR2Keys).length });
 
       await setStatus('illustrating');
       const anchorImages = new Map<string, Buffer>();
@@ -87,11 +104,14 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
         batches.push(rawChapters.slice(i, i + CHAPTER_CONCURRENCY));
       }
 
+      let totalIllustrated = 0;
+      let totalSkipped = 0;
+
       for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
         // biome-ignore lint/style/noNonNullAssertion: batchIdx always < batches.length
         const batch = batches[batchIdx]!;
         const label = batch.map((c) => c.number).join(',');
-        await step.do(`illustrate-batch-${batchIdx}-ch${label}`, () =>
+        const batchResults = await step.do(`illustrate-batch-${batchIdx}-ch${label}`, () =>
           illustrateBatchStep({
             bookId,
             chapters: batch,
@@ -102,14 +122,23 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
             BOOKS_BUCKET,
           })
         );
+        const succeeded = batchResults.filter((r) => r.imgR2Key !== null).length;
+        const failed = batchResults.filter((r) => r.imgR2Key === null).length;
+        totalIllustrated += succeeded;
+        totalSkipped += failed;
       }
+
+      log.info('workflow.illustrated', { bookId, batchCount: batches.length, totalIllustrated, totalSkipped });
 
       const htmlR2Key = await step.do('assemble', () =>
         assembleStep({ setStatus, bookId, bible, DB, BOOKS_BUCKET })
       );
       await step.do('finalize', () => finalizeStep({ bookId, htmlR2Key, DB, CACHE }));
+
+      log.info('workflow.complete', { bookId, htmlR2Key, durationMs: Date.now() - startedAt });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      log.error('workflow.error', { bookId, error: msg, durationMs: Date.now() - startedAt });
       await DB.prepare(
         `UPDATE books SET status = 'error', error_msg = ?, updated_at = datetime('now') WHERE id = ?`
       )

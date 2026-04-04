@@ -6,14 +6,19 @@
  * and decouples the upload response time from Workflow startup.
  */
 
+import { getLogger } from '@illustrator/core';
+
 import type { Env, IllustrateJobMessage } from './types.js';
 
 export async function handleQueue(
   batch: MessageBatch<IllustrateJobMessage>,
   env: Env
 ): Promise<void> {
+  const log = getLogger();
+
   for (const msg of batch.messages) {
     const { bookId, r2Key } = msg.body;
+    log.info('queue.received', { bookId, r2Key });
 
     try {
       // Create a new Workflow instance for this book
@@ -30,9 +35,11 @@ export async function handleQueue(
         .bind(instance.id, bookId)
         .run();
 
+      log.info('queue.workflow.started', { bookId, instanceId: instance.id });
       msg.ack();
     } catch (err) {
-      console.error(`Failed to start workflow for book ${bookId}:`, err);
+      const error = err instanceof Error ? err.message : String(err);
+      log.error('queue.workflow.startFailed', { bookId, error });
       msg.retry();
     }
   }

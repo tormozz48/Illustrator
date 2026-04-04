@@ -962,7 +962,117 @@ When sequential processing becomes a user pain point, add fan-out:
 
 ---
 
-## 13. Summary
+## 13. Observability
+
+All features below work on the **Cloudflare free tier** with **zero external dependencies** — no Honeycomb, Grafana, Axiom, or any third-party account required. They ship with Cloudflare itself.
+
+### 13.1 Workers Logs (Auto-enabled)
+
+All newly created Workers have `observability.enabled = true` by default. Logs include:
+
+- Every invocation (request metadata, response status, CPU time, wall time)
+- All `console.log()` / `console.error()` output
+- Uncaught exceptions with full context
+
+Logs are stored in Cloudflare's dashboard for search, filtering, and inspection. The free tier includes a generous included volume; overages are $0.60/million log lines. No configuration needed — it just works.
+
+### 13.2 Source Maps → Human-Readable Stack Traces
+
+Add one line to each Worker's `wrangler.jsonc`:
+
+```jsonc
+{
+  "observability": { "enabled": true },
+  "upload_source_maps": true
+}
+```
+
+When a Workflow step or API Worker throws an uncaught exception, Cloudflare fetches the uploaded source map and deobfuscates the minified/compiled stack trace back to your original TypeScript source. Stack traces appear in Workers Logs and in `wrangler tail` output. Requires Wrangler ≥ 3.46.0 (already in the toolchain).
+
+**Particularly valuable here:** Workflow steps run compiled JS deep inside Cloudflare's runtime. Without source maps, stack traces point at line numbers in the bundled output. With them, you see the exact TypeScript line in `src/pipeline/illustrator.ts` that failed mid-chapter.
+
+### 13.3 Real-Time Logs via `wrangler tail`
+
+```bash
+# Stream live logs from the pipeline worker
+npx wrangler tail illustrator-pipeline --format pretty
+
+# Filter to only errors
+npx wrangler tail illustrator-api --status error
+```
+
+`wrangler tail` streams structured JSON events to your terminal as they happen: console output, exceptions, request metadata, CPU/wall time per invocation. Available on all plans. Essential during deploys and incident response — no dashboard required.
+
+### 13.4 Metrics & Analytics Dashboard
+
+Built into the Cloudflare dashboard for every Worker at no cost. Tracks:
+
+| Metric | What it tells you |
+|---|---|
+| Request count | Traffic volume per Worker (API vs. Pipeline) |
+| Error rate | % of invocations that threw |
+| CPU time (p50/p99) | Compute usage; flag runaway chapters |
+| Wall time (p50/p99) | Total duration including I/O waits |
+| Execution duration | Workflow step timing |
+
+No configuration. Retained for 30 days on the free tier. Useful for spotting when a Gemini call is timing out or when p99 CPU spikes on the illustrator step.
+
+### 13.5 Traces (Dashboard View — Free Tier)
+
+Automatic tracing is available on the free plan for **viewing traces in the Cloudflare dashboard** (exporting to a third-party OTLP destination requires the Paid plan). Traces give end-to-end visibility into each request's lifecycle: spans for KV reads, D1 queries, Queue writes, `fetch()` calls to Gemini, and Workflow step boundaries — all correlated under a single trace ID.
+
+Tracing is billed per span/event starting March 2026, with a free included volume. Enable in `wrangler.jsonc`:
+
+```jsonc
+{
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
+```
+
+For the MVP, set `head_sampling_rate: 1` (100%) since traffic is low. When volume grows, drop to `0.1` (10%) to stay within the free tier.
+
+**Particularly valuable here:** A single book triggers ~40 Gemini calls and dozens of D1/KV/R2 operations across multiple Workflow steps. Traces let you see exactly which step is slow, which Gemini call failed, and how long each chapter takes — without adding any instrumentation code.
+
+### 13.6 Query Builder (Beta, In-Dashboard)
+
+Available via the Workers Observability dashboard → "Queries" tab. Lets you write structured queries over your stored logs:
+
+```sql
+-- Find all failed illustrator steps in the last 24 hours
+SELECT * FROM logs
+WHERE level = 'error'
+  AND worker = 'illustrator-pipeline'
+  AND timestamp > NOW() - INTERVAL 24 HOUR
+
+-- Measure average CPU per chapter
+SELECT AVG(cpu_time_ms), chapter_index
+FROM logs
+WHERE message LIKE 'Chapter % complete'
+GROUP BY chapter_index
+```
+
+Results render as tables or time-series charts. Queries can be saved and shared via direct URL. No external analytics tool needed.
+
+### 13.7 Summary: What to Add vs. Skip on Free Tier
+
+| Feature | Plan | External service? | Add? |
+|---|---|---|---|
+| Workers Logs | Free ✅ | None | ✅ Already on |
+| Source Maps | Free ✅ | None | ✅ Add `upload_source_maps: true` |
+| `wrangler tail` | Free ✅ | None | ✅ Dev/incident tooling |
+| Metrics & Analytics | Free ✅ | None | ✅ Auto-available |
+| Traces (dashboard) | Free ✅ | None | ✅ Enable `head_sampling_rate` |
+| Query Builder | Free ✅ | None | ✅ Use for log analysis |
+| Workers Logpush | Paid ❌ | External destination | ⏭ Phase 2+ |
+| Tail Workers | Paid ❌ | Optional destination | ⏭ Phase 2+ |
+| OTel Export | Paid ❌ | Honeycomb/Grafana/etc. | ⏭ Phase 3+ |
+
+---
+
+## 14. Summary
 
 The Illustrator SaaS maps cleanly onto the Cloudflare platform:
 

@@ -3,6 +3,7 @@ import {
   type EnrichedChapter,
   type GeminiClient,
   type RawChapter,
+  getLogger,
   illustrateChapter,
 } from '@illustrator/core';
 
@@ -38,6 +39,9 @@ export async function illustrateBatchStep({
   DB,
   BOOKS_BUCKET,
 }: Ctx): Promise<ChapterResult[]> {
+  const log = getLogger();
+  log.info('step.batch.start', { bookId, chapters: chapters.map((c) => c.number) });
+
   const results = await Promise.allSettled(
     chapters.map((ch) =>
       illustrateSingleChapter({
@@ -52,22 +56,27 @@ export async function illustrateBatchStep({
     )
   );
 
-  return results.map((result, i) => {
+  const mapped = results.map((result, i) => {
     // Safe: results.length === chapters.length (from Promise.allSettled)
     // biome-ignore lint/style/noNonNullAssertion: index always in bounds
     const ch = chapters[i]!;
     if (result.status === 'fulfilled') {
       return result.value;
     }
-    // Log but don't throw — the chapter is skipped, not fatal
     const errMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
-    console.error(`[batch] ch${ch.number} failed: ${errMsg}`);
+    log.error('step.batch.chapterFailed', { bookId, chapterNumber: ch.number, error: errMsg });
     return {
       chapterNumber: ch.number,
       imgR2Key: null,
       error: errMsg,
     };
   });
+
+  const succeeded = mapped.filter((r) => r.imgR2Key !== null).length;
+  const failed = mapped.filter((r) => r.imgR2Key === null).length;
+  log.info('step.batch.complete', { bookId, total: chapters.length, succeeded, failed });
+
+  return mapped;
 }
 
 // ── Single chapter processing (same logic as illustrateChapter.step.ts) ──────

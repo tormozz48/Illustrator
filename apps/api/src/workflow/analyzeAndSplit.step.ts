@@ -1,5 +1,6 @@
 import {
   buildBible,
+  getLogger,
   splitIntoChapters,
   type GeminiClient,
   type CharacterBible,
@@ -23,6 +24,8 @@ export async function analyzeAndSplitStep({
   bookId,
   DB,
 }: Ctx): Promise<[CharacterBible, RawChapter[]]> {
+  const log = getLogger();
+  log.info('step.analyzeAndSplit.start', { bookId, bookChars: bookText.length });
   await setStatus("splitting");
 
   const [book, chapters] = await Promise.all([
@@ -44,6 +47,13 @@ export async function analyzeAndSplitStep({
     ).bind(bookId, c.number, c.title ?? "", c.content)
   );
   if (statements.length > 0) await DB.batch(statements);
+
+  log.info('step.analyzeAndSplit.complete', {
+    bookId,
+    chapterCount: chapters.length,
+    primaryEntityCount: book.entities.filter((e) => e.importance === 'primary').length,
+    totalEntityCount: book.entities.length,
+  });
 
   return [book, chapters];
 }

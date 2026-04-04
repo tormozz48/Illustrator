@@ -1,4 +1,4 @@
-import { assembleWebHtml, type CharacterBible } from "@illustrator/core";
+import { assembleWebHtml, getLogger, type CharacterBible } from "@illustrator/core";
 
 import type { makeSetStatus } from "./setStatus.js";
 
@@ -17,6 +17,8 @@ export async function assembleStep({
   DB,
   BOOKS_BUCKET,
 }: Ctx): Promise<string> {
+  const log = getLogger();
+  log.info('step.assemble.start', { bookId });
   await setStatus("assembling");
 
   const bookRow = await DB.prepare(
@@ -68,5 +70,14 @@ export async function assembleStep({
   await BOOKS_BUCKET.put(key, html, {
     httpMetadata: { contentType: "text/html; charset=utf-8" },
   });
+
+  log.info('step.assemble.complete', {
+    bookId,
+    r2Key: key,
+    chapterCount: chRows.length,
+    illustratedCount: chRows.filter((r) => r.has_illustration === 1).length,
+    htmlChars: html.length,
+  });
+
   return key;
 }
