@@ -62,6 +62,20 @@
   // ── Secrets (set via: wrangler secret put GEMINI_API_KEY) ─────────────────
   // GEMINI_API_KEY — Google Gemini API key
 
+  // ── Observability ──────────────────────────────────────────────────────────
+  // Enables Workers Logs + automatic tracing in the Cloudflare dashboard.
+  // head_sampling_rate = 1 traces every request (safe on free-tier MVP traffic).
+  // Lower to 0.1 when daily volume exceeds free-tier trace allotment.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+
+  // Upload TypeScript source maps so stack traces in Workers Logs and
+  // wrangler tail show original .ts file/line numbers instead of compiled JS.
+  // Requires wrangler >= 3.46.0.
+  "upload_source_maps": true,
+
   // ── Local dev overrides ────────────────────────────────────────────────────
   "dev": {
     "port": 8787
