@@ -1,8 +1,10 @@
 // ── Logger ─────────────────────────────────────────────────────────────────────
-export { type Logger, consoleLogger, getLogger, setLogger } from './logger.js';
+export { type Logger, pinoLogger, getLogger, setLogger } from './logger.js';
 
-// ── Gemini client ──────────────────────────────────────────────────────────────
+// ── AI provider interface & implementations ────────────────────────────────────
+export type { AIProvider } from './ai-provider.js';
 export { GeminiClient } from './gemini.js';
+export { CloudflareAIClient, type CloudflareAIConfig } from './cloudflare-ai.js';
 
 // ── Schemas & types ────────────────────────────────────────────────────────────
 export * from './schemas/index.js';

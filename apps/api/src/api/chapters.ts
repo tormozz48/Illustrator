@@ -8,15 +8,17 @@ const chapters = new Hono<{ Bindings: Env }>();
 
 // ── GET /api/books/:id/chapters ──────────────────────────────────────────────
 chapters.get('/', async (c) => {
-  const results = await listChaptersWithMeta(c.env.DB, c.req.param('id'));
+  const bookId = c.req.param('id');
+  if (!bookId) return c.json({ error: 'Missing book id' }, 400);
+  const results = await listChaptersWithMeta(c.env.DB, bookId);
   return c.json(results);
 });
 
 // ── GET /api/books/:id/chapters/:num/img ─────────────────────────────────────
 // Streams the illustration image for a chapter directly from R2.
 chapters.get('/:num/img', async (c) => {
-  const bookId = c.req.param('id');
-  const num = Number.parseInt(c.req.param('num'), 10);
+  const bookId = c.req.param('id') ?? '';
+  const num = Number.parseInt(c.req.param('num') ?? '', 10);
 
   if (Number.isNaN(num)) return c.json({ error: 'Invalid chapter number' }, 400);
 

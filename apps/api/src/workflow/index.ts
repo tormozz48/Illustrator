@@ -16,7 +16,7 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 
-import { GeminiClient, getLogger, setLogger } from '@illustrator/core';
+import { CloudflareAIClient, getLogger, setLogger } from '@illustrator/core';
 
 import { workersLogger } from '../logger.js';
 import type { Env, IllustrateJobMessage } from '../types.js';
@@ -34,13 +34,14 @@ import { makeSetStatus } from './setStatus.js';
 /**
  * Number of chapters to process concurrently within a single Workflow step.
  *
- * Free tier budget: 50 external subrequests per step.
- * Each chapter uses 3–9 Gemini API calls (external).
- * Batch of 3 → 9–27 external subrequests → safe under 50.
+ * Workers AI calls via env.AI.run() are Cloudflare-internal and do NOT count
+ * toward the 50 external subrequest limit per step (ADR-002). Only D1 and R2
+ * writes count as external (1,000 limit — far more generous).
  *
- * Increase to 5 on paid tier (no subrequest limit).
+ * With AI calls off the external budget, 5 concurrent chapters is safe:
+ *   5 chapters × ~9 D1/R2 ops = ~45 external subrequests per step.
  */
-const CHAPTER_CONCURRENCY = 3;
+const CHAPTER_CONCURRENCY = 5;
 
 // Replace the default consoleLogger with a structured JSON logger so all
 // core pipeline logs (analyzer, splitter, illustrator) and step-level logs
@@ -50,9 +51,9 @@ setLogger(workersLogger);
 export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJobMessage> {
   async run(event: WorkflowEvent<IllustrateJobMessage>, step: WorkflowStep) {
     const { bookId, r2Key } = event.payload;
-    const { DB, BOOKS_BUCKET, CACHE, GEMINI_API_KEY } = this.env;
+    const { DB, BOOKS_BUCKET, CACHE, AI } = this.env;
 
-    const gemini = new GeminiClient(GEMINI_API_KEY);
+    const client = new CloudflareAIClient({ ai: AI });
     const setStatus = makeSetStatus(DB, bookId);
     const log = getLogger();
     const startedAt = Date.now();
@@ -65,7 +66,7 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
       );
 
       const [bible, rawChapters] = await step.do('analyze-and-split', () =>
-        analyzeAndSplitStep({ setStatus, gemini, bookText, bookId, DB })
+        analyzeAndSplitStep({ setStatus, client, bookText, bookId, DB })
       );
 
       log.info('workflow.analyzed', {
@@ -80,7 +81,7 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
 
       for (const entity of bible.entities.filter((e) => e.importance === 'primary')) {
         const anchorKey = await step.do(`anchor-${entity.name}`, () =>
-          anchorEntityStep({ bookId, entity, bible, gemini, BOOKS_BUCKET })
+          anchorEntityStep({ bookId, entity, bible, client, BOOKS_BUCKET })
         );
         if (anchorKey) anchorR2Keys[entity.name] = anchorKey;
       }
@@ -119,7 +120,7 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
             chapters: batch,
             bible,
             anchorImages,
-            gemini,
+            client,
             DB,
             BOOKS_BUCKET,
           })

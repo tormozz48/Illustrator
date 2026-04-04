@@ -1,7 +1,7 @@
 import {
+  type AIProvider,
   type CharacterBible,
   type EnrichedChapter,
-  type GeminiClient,
   type RawChapter,
   illustrateChapter,
 } from '@illustrator/core';
@@ -11,7 +11,7 @@ interface Ctx {
   readonly ch: RawChapter;
   readonly bible: CharacterBible;
   readonly anchorImages: Map<string, Buffer>;
-  readonly gemini: GeminiClient;
+  readonly client: AIProvider;
   readonly DB: D1Database;
   readonly BOOKS_BUCKET: R2Bucket;
 }
@@ -21,14 +21,14 @@ export async function illustrateChapterStep({
   ch,
   bible,
   anchorImages,
-  gemini,
+  client,
   DB,
   BOOKS_BUCKET,
 }: Ctx): Promise<string | null> {
   let enriched: EnrichedChapter;
   try {
     enriched = await illustrateChapter({
-      client: gemini,
+      client,
       chapter: ch,
       bible,
       anchorImages,

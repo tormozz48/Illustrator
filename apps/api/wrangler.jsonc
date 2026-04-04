@@ -59,8 +59,16 @@
     }
   ],
 
-  // ── Secrets (set via: wrangler secret put GEMINI_API_KEY) ─────────────────
-  // GEMINI_API_KEY — Google Gemini API key
+  // ── Workers AI binding ─────────────────────────────────────────────────────
+  // Enables env.AI.run() inside the Worker — no API key needed, billed to the
+  // account at $0.011/1K neurons (10K neurons/day included on free plan).
+  "ai": {
+    "binding": "AI"
+  },
+
+  // ── Secrets ────────────────────────────────────────────────────────────────
+  // GEMINI_API_KEY is no longer used in production (Workers AI replaces Gemini).
+  // Keep the secret for local CLI development or future fallback if needed.
 
   // ── Observability ──────────────────────────────────────────────────────────
   // Enables Workers Logs + automatic tracing in the Cloudflare dashboard.

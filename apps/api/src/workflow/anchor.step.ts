@@ -1,6 +1,6 @@
 import {
+  type AIProvider,
   type CharacterBible,
-  type GeminiClient,
   buildAnchorPrompt,
   getLogger,
 } from '@illustrator/core';
@@ -11,7 +11,7 @@ interface Ctx {
   readonly bookId: string;
   readonly entity: Entity;
   readonly bible: CharacterBible;
-  readonly gemini: GeminiClient;
+  readonly client: AIProvider;
   readonly BOOKS_BUCKET: R2Bucket;
 }
 
@@ -19,7 +19,7 @@ export async function anchorEntityStep({
   bookId,
   entity,
   bible,
-  gemini,
+  client,
   BOOKS_BUCKET,
 }: Ctx): Promise<string | null> {
   const log = getLogger();
@@ -32,7 +32,7 @@ export async function anchorEntityStep({
   });
 
   try {
-    const imgBuf = await gemini.generateImage(prompt);
+    const imgBuf = await client.generateImage(prompt);
     const key = `books/${bookId}/anchors/${entity.name.replace(/\s+/g, '_')}.webp`;
     await BOOKS_BUCKET.put(key, imgBuf, {
       httpMetadata: { contentType: 'image/webp' },

@@ -1,7 +1,7 @@
 import {
+  type AIProvider,
   type CharacterBible,
   type EnrichedChapter,
-  type GeminiClient,
   type RawChapter,
   getLogger,
   illustrateChapter,
@@ -16,7 +16,7 @@ interface Ctx {
   readonly chapters: RawChapter[];
   readonly bible: CharacterBible;
   readonly anchorImages: Map<string, Buffer>;
-  readonly gemini: GeminiClient;
+  readonly client: AIProvider;
   readonly DB: D1Database;
   readonly BOOKS_BUCKET: R2Bucket;
 }
@@ -39,7 +39,7 @@ export async function illustrateBatchStep({
   chapters,
   bible,
   anchorImages,
-  gemini,
+  client,
   DB,
   BOOKS_BUCKET,
 }: Ctx): Promise<ChapterResult[]> {
@@ -53,7 +53,7 @@ export async function illustrateBatchStep({
         ch,
         bible,
         anchorImages,
-        gemini,
+        client,
         DB,
         BOOKS_BUCKET,
       })
@@ -90,7 +90,7 @@ async function illustrateSingleChapter({
   ch,
   bible,
   anchorImages,
-  gemini,
+  client,
   DB,
   BOOKS_BUCKET,
 }: {
@@ -98,14 +98,14 @@ async function illustrateSingleChapter({
   ch: RawChapter;
   bible: CharacterBible;
   anchorImages: Map<string, Buffer>;
-  gemini: GeminiClient;
+  client: AIProvider;
   DB: D1Database;
   BOOKS_BUCKET: R2Bucket;
 }): Promise<ChapterResult> {
   let enriched: EnrichedChapter;
   try {
     enriched = await illustrateChapter({
-      client: gemini,
+      client,
       chapter: ch,
       bible,
       anchorImages,

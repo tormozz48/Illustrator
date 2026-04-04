@@ -1,6 +1,6 @@
 import {
+  type AIProvider,
   type CharacterBible,
-  type GeminiClient,
   type RawChapter,
   buildBible,
   getLogger,
@@ -13,7 +13,7 @@ import type { makeSetStatus } from './setStatus.js';
 
 interface Ctx {
   readonly setStatus: ReturnType<typeof makeSetStatus>;
-  readonly gemini: GeminiClient;
+  readonly client: AIProvider;
   readonly bookText: string;
   readonly bookId: string;
   readonly DB: D1Database;
@@ -21,7 +21,7 @@ interface Ctx {
 
 export async function analyzeAndSplitStep({
   setStatus,
-  gemini,
+  client,
   bookText,
   bookId,
   DB,
@@ -31,8 +31,8 @@ export async function analyzeAndSplitStep({
   await setStatus('splitting');
 
   const [book, chapters] = await Promise.all([
-    buildBible(gemini, bookText),
-    splitIntoChapters(gemini, bookText),
+    buildBible(client, bookText),
+    splitIntoChapters(client, bookText),
   ]);
 
   await upsertBible(DB, bookId, book);
