@@ -11,9 +11,11 @@
     "db:migrate:remote": "wrangler d1 migrations apply illustrator-db --remote"
   },
   "dependencies": {
-    "@illustrator/core": "*",
+    "@google/genai": "^1.48.0",
     "hono": "^4.6.3",
-    "nanoid": "^5.0.7"
+    "jimp": "^1.6.0",
+    "nanoid": "^5.0.7",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",

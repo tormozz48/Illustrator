@@ -1,14 +1,8 @@
-import {
-  type AIProvider,
-  type CharacterBible,
-  type RawChapter,
-  buildBible,
-  getLogger,
-  splitIntoChapters,
-} from '@illustrator/core';
-
+import type { AIProvider } from '../ai-provider.js';
 import { upsertBible } from '../db/bible.db.js';
 import { insertChapters } from '../db/chapter.db.js';
+import { getLogger } from '../logger.js';
+import type { CharacterBible, RawChapter } from '../schemas/index.js';
 import type { makeSetStatus } from './setStatus.js';
 
 interface Ctx {
@@ -31,8 +25,8 @@ export async function analyzeAndSplitStep({
   await setStatus('splitting');
 
   const [book, chapters] = await Promise.all([
-    buildBible(client, bookText),
-    splitIntoChapters(client, bookText),
+    client.analyzeBook(bookText),
+    client.splitChapters(bookText),
   ]);
 
   await upsertBible(DB, bookId, book);

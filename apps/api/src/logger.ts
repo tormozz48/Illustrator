@@ -1,20 +1,20 @@
 /**
  * Structured JSON logger for Cloudflare Workers.
  *
- * Implements the same Logger interface as the CLI's Winston logger, but
- * outputs newline-delimited JSON to console.*. Workers Logs captures these
- * calls, and the Query Builder can filter/aggregate on any field in the JSON.
- *
- * Usage:
- *   import { setLogger } from '@illustrator/core';
- *   import { workersLogger } from './logger.js';
- *   setLogger(workersLogger);   // once, at module load
+ * Implements the Logger interface and outputs newline-delimited JSON to
+ * console.*. Workers Logs captures these calls, and the Query Builder can
+ * filter/aggregate on any field in the JSON.
  *
  * Log shape:
  *   { "level": "info", "msg": "step.batch.complete", "bookId": "abc", "succeeded": 3 }
  */
 
-import type { Logger } from '@illustrator/core';
+export interface Logger {
+  info(msg: string, meta?: Record<string, unknown>): void;
+  warn(msg: string, meta?: Record<string, unknown>): void;
+  error(msg: string, meta?: Record<string, unknown>): void;
+  debug(msg: string, meta?: Record<string, unknown>): void;
+}
 
 export const workersLogger: Logger = {
   info(msg: string, meta?: Record<string, unknown>): void {
@@ -31,3 +31,18 @@ export const workersLogger: Logger = {
     // Re-enable locally via: wrangler dev --log-level debug
   },
 };
+
+let current: Logger = workersLogger;
+
+/**
+ * Replace the global logger used by all modules.
+ * Call once at application startup before any pipeline function runs.
+ */
+export function setLogger(logger: Logger): void {
+  current = logger;
+}
+
+/** Get the currently configured logger. */
+export function getLogger(): Logger {
+  return current;
+}

@@ -27,7 +27,7 @@ export class GeminiClient implements AIProvider {
 
   /**
    * @param apiKey  Google Gemini API key. Required — no environment fallback
-   *                so that core stays independent of dotenv/process.env.
+   *                so that the client stays independent of dotenv/process.env.
    */
   constructor(apiKey: string) {
     this.genAI = new GoogleGenAI({ apiKey });

@@ -1,4 +1,4 @@
-import type { RawChapter } from '@illustrator/core';
+import type { RawChapter } from '../schemas/index.js';
 
 export interface ChapterWithMeta {
   id: number;

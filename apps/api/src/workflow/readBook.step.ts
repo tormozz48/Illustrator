@@ -1,4 +1,4 @@
-import { getLogger } from '@illustrator/core';
+import { getLogger } from '../logger.js';
 
 import type { makeSetStatus } from './setStatus.js';
 

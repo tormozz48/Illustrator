@@ -1,11 +1,8 @@
-import {
-  type AIProvider,
-  type CharacterBible,
-  buildAnchorPrompt,
-  getLogger,
-} from '@illustrator/core';
+import type { AIProvider } from '../ai-provider.js';
+import { getLogger } from '../logger.js';
+import type { CharacterBible, VisualEntity } from '../schemas/index.js';
 
-type Entity = CharacterBible['entities'][number];
+type Entity = VisualEntity;
 
 interface Ctx {
   readonly bookId: string;
@@ -46,9 +43,54 @@ export async function anchorEntityStep({
     return key;
   } catch (err) {
     // Anchor generation is best-effort; don't fail the whole workflow.
-    // Log at ERROR so the failure is always visible in Worker Logs.
     const error = err instanceof Error ? err.message : String(err);
     log.error('step.anchor.failed', { bookId, entity: entity.name, error });
     return null;
   }
+}
+
+// ── Anchor prompt ──────────────────────────────────────────────────────────────
+
+function buildAnchorPrompt({
+  entity,
+  stylePrefix,
+  negativePrompt,
+}: {
+  entity: VisualEntity;
+  stylePrefix: string;
+  negativePrompt: string;
+}): string {
+  const { name, category, visualDescription, distinctiveFeatures, physicalTraits } = entity;
+
+  let subjectLine = `${name}: ${visualDescription}`;
+  if (category === 'character' && physicalTraits) {
+    const details = [
+      physicalTraits.age,
+      physicalTraits.gender,
+      physicalTraits.hairColor &&
+        `${`${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ''}`.trim()} hair`,
+      physicalTraits.eyeColor && `${physicalTraits.eyeColor} eyes`,
+      physicalTraits.skinTone && `${physicalTraits.skinTone} skin`,
+      physicalTraits.facialFeatures,
+      physicalTraits.clothing && `wearing ${physicalTraits.clothing}`,
+      physicalTraits.accessories?.length ? physicalTraits.accessories.join(', ') : undefined,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    if (details) {
+      subjectLine += ` — ${details}`;
+    }
+  }
+  if (distinctiveFeatures.length > 0) {
+    subjectLine += `. Distinctive: ${distinctiveFeatures.join(', ')}`;
+  }
+
+  const refInstruction =
+    category === 'character'
+      ? 'Full-body portrait, front-facing, neutral expression, neutral pose, plain background, character reference sheet.'
+      : category === 'creature'
+        ? 'Full-body side view, neutral pose, plain background, creature reference sheet.'
+        : 'Detailed view of subject, isolated on plain background, reference sheet.';
+
+  return [stylePrefix, subjectLine, refInstruction, `Negative: ${negativePrompt}`].join('\n\n');
 }

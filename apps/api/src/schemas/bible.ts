@@ -94,6 +94,6 @@ export const VisualBibleSchema = z.object({
 });
 export type VisualBible = z.infer<typeof VisualBibleSchema>;
 
-// ── Backward-compat aliases — existing imports still compile unchanged ─────────
+// ── Backward-compat aliases ────────────────────────────────────────────────────
 export type CharacterBible = VisualBible;
 export const CharacterBibleSchema = VisualBibleSchema;

@@ -6,7 +6,7 @@
  * and decouples the upload response time from Workflow startup.
  */
 
-import { getLogger } from '@illustrator/core';
+import { getLogger } from './logger.js';
 
 import { insertJob } from './db/job.db.js';
 import type { Env, IllustrateJobMessage } from './types.js';

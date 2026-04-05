@@ -1,4 +1,4 @@
-import { getLogger } from '@illustrator/core';
+import { getLogger } from '../logger.js';
 
 import { markBookDone } from '../db/book.db.js';
 import { markJobComplete } from '../db/job.db.js';

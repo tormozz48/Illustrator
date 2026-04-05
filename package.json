@@ -5,7 +5,6 @@
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "dev:cli": "npm run dev --workspace=apps/cli --",
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:web": "npm run dev --workspace=apps/web",
     "typecheck": "npm run typecheck --workspaces --if-present",

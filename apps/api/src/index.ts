@@ -1,10 +1,9 @@
 import type { ExportedHandler } from '@cloudflare/workers-types';
-import { getLogger, setLogger } from '@illustrator/core';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { books } from './api/books.js';
 import { chapters } from './api/chapters.js';
-import { workersLogger } from './logger.js';
+import { getLogger, setLogger, workersLogger } from './logger.js';
 import { handleQueue } from './queue.js';
 import type { Env, IllustrateJobMessage } from './types.js';
 

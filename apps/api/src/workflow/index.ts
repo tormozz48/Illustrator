@@ -16,9 +16,8 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 
-import { GeminiClient, getLogger, setLogger } from '@illustrator/core';
-
-import { workersLogger } from '../logger.js';
+import { GeminiClient } from '../gemini.js';
+import { getLogger, setLogger, workersLogger } from '../logger.js';
 import type { Env, IllustrateJobMessage } from '../types.js';
 
 import { updateBookStatus } from '../db/book.db.js';
