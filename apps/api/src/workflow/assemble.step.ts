@@ -1,5 +1,7 @@
 import { getBookMeta } from '../db/book.db.js';
-import { listChaptersForAssemble } from '../db/chapter.db.js';
+import { getBible } from '../db/bible.db.js';
+import { listChaptersForAssemble, listChaptersForNewAssemble } from '../db/chapter.db.js';
+import { getSelectedScenesForChapter } from '../db/scene.db.js';
 import { getLogger } from '../logger.js';
 import type { CharacterBible } from '../schemas/index.js';
 import type { makeSetStatus } from './setStatus.js';
@@ -236,3 +238,207 @@ const CSS = `<style>
     @media (max-width: 600px) { html { font-size: 16px; } .chapter { padding: 1.5rem 1.25rem; } .illustration { margin: 1.5rem -0.25rem; } }
     @media print { body { background: white; padding: 0; } .chapter { border: none; } .chapter-nav { display: none; } }
   </style>`;
+
+// ── New assembly for interactive flow with multi-scene support ─────────────────
+
+interface NewAssembleCtx {
+  readonly bookId: string;
+  readonly DB: D1Database;
+  readonly BOOKS_BUCKET: R2Bucket;
+  readonly apiBase?: string;
+}
+
+export async function assembleNewStep({
+  bookId,
+  DB,
+  BOOKS_BUCKET,
+  apiBase = '',
+}: NewAssembleCtx): Promise<string> {
+  const log = getLogger();
+  log.info('step.assembleNew.start', { bookId });
+
+  const bookRow = await getBookMeta(DB, bookId);
+  const bibleRow = await getBible(DB, bookId);
+  const bible = bibleRow ? (JSON.parse(bibleRow.data) as CharacterBible) : null;
+
+  const chapters = await listChaptersForNewAssemble(DB, bookId);
+
+  // For each chapter, get selected scenes and their variant images
+  const webChapters: Array<{
+    number: number;
+    title: string;
+    content: string;
+    illustrations: Array<{ insertAfterParagraph: number; imgDataUrl: string }>;
+  }> = [];
+
+  for (const ch of chapters) {
+    const selectedScenes = await getSelectedScenesForChapter(DB, ch.id);
+    const illustrations: Array<{ insertAfterParagraph: number; imgDataUrl: string }> = [];
+
+    for (const scene of selectedScenes) {
+      if (scene.variant_r2_key) {
+        try {
+          const obj = await BOOKS_BUCKET.get(scene.variant_r2_key);
+          if (obj) {
+            const buf = await obj.arrayBuffer();
+            const base64 = Buffer.from(buf).toString('base64');
+            const mimeType = obj.httpMetadata?.contentType ?? 'image/jpeg';
+            illustrations.push({
+              insertAfterParagraph: scene.insert_after_para,
+              imgDataUrl: `data:${mimeType};base64,${base64}`,
+            });
+          }
+        } catch {
+          // Skip failed images
+        }
+      }
+    }
+
+    webChapters.push({
+      number: ch.number,
+      title: ch.title,
+      content: ch.content,
+      illustrations,
+    });
+  }
+
+  const html = assembleNewWebHtml({
+    bookId,
+    title: bookRow?.title ?? 'Untitled',
+    author: bookRow?.author ?? undefined,
+    chapters: webChapters,
+    generatedAt: new Date().toISOString(),
+  });
+
+  const key = `books/${bookId}/reader.html`;
+  await BOOKS_BUCKET.put(key, html, {
+    httpMetadata: { contentType: 'text/html; charset=utf-8' },
+  });
+
+  log.info('step.assembleNew.complete', { bookId, r2Key: key });
+  return key;
+}
+
+function assembleNewWebHtml({
+  bookId,
+  title,
+  author,
+  chapters,
+  generatedAt = new Date().toISOString(),
+}: {
+  bookId: string;
+  title: string;
+  author?: string;
+  chapters: Array<{
+    number: number;
+    title: string;
+    content: string;
+    illustrations: Array<{ insertAfterParagraph: number; imgDataUrl: string }>;
+  }>;
+  generatedAt?: string;
+}): string {
+  const tocItems = chapters
+    .map(
+      (ch) =>
+        `<li><a href="#chapter-${ch.number}">${escHtml(ch.title || `Chapter ${ch.number}`)}</a></li>`
+    )
+    .join('\n      ');
+
+  const chapterBlocks = chapters.map((ch) => renderNewChapter(ch)).join('\n\n  ');
+
+  const formattedDate = new Date(generatedAt).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escHtml(title)}</title>
+  ${CSS}
+</head>
+<body>
+  <header class="book-header">
+    <h1 class="book-title">${escHtml(title)}</h1>
+    ${author ? `<p class="book-author">by ${escHtml(author)}</p>` : ''}
+  </header>
+  <nav class="toc" id="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+    <ol>${tocItems}</ol>
+  </nav>
+  ${chapterBlocks}
+  <footer class="book-footer">
+    <p>Generated with <strong>bookillust</strong> &middot; ${formattedDate}</p>
+  </footer>
+</body>
+</html>`;
+}
+
+function renderNewChapter(ch: {
+  number: number;
+  title: string;
+  content: string;
+  illustrations: Array<{ insertAfterParagraph: number; imgDataUrl: string }>;
+}): string {
+  const paragraphs = ch.content
+    .split('\n\n')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  // Build a map from paragraph index to illustration data URLs
+  const illustrationsAtPara = new Map<number, string[]>();
+  for (const ill of ch.illustrations) {
+    const existing = illustrationsAtPara.get(ill.insertAfterParagraph) ?? [];
+    existing.push(ill.imgDataUrl);
+    illustrationsAtPara.set(ill.insertAfterParagraph, existing);
+  }
+
+  const paragraphHtml: string[] = [];
+  for (let pi = 0; pi < paragraphs.length; pi++) {
+    paragraphHtml.push(`    <p>${renderLines(paragraphs[pi] ?? '')}</p>`);
+    const imgs = illustrationsAtPara.get(pi);
+    if (imgs) {
+      for (const imgDataUrl of imgs) {
+        paragraphHtml.push(
+          `    <figure class="illustration">
+      <img src="${imgDataUrl}" alt="Illustration for chapter ${ch.number}" loading="lazy">
+    </figure>`
+        );
+      }
+    }
+  }
+
+  // Append any illustrations past end of chapter
+  const totalParas = paragraphs.length;
+  for (const [pi, imgs] of illustrationsAtPara.entries()) {
+    if (pi >= totalParas) {
+      for (const imgDataUrl of imgs) {
+        paragraphHtml.push(
+          `    <figure class="illustration">
+      <img src="${imgDataUrl}" alt="Illustration for chapter ${ch.number}" loading="lazy">
+    </figure>`
+        );
+      }
+    }
+  }
+
+  const prevLink =
+    ch.number > 1 ? `<a href="#chapter-${ch.number - 1}">&larr; Previous</a>` : '<span></span>';
+
+  return `  <article class="chapter" id="chapter-${ch.number}">
+    <div class="chapter-heading">
+      <span class="chapter-number">Chapter ${ch.number}</span>
+      <h2 class="chapter-title">${escHtml(ch.title || `Chapter ${ch.number}`)}</h2>
+    </div>
+    <div class="chapter-body">
+${paragraphHtml.join('\n')}
+    </div>
+    <nav class="chapter-nav">
+      ${prevLink}
+      <a href="#toc">&#8593; Contents</a>
+    </nav>
+  </article>`;
+}

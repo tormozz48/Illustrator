@@ -91,3 +91,49 @@ export async function markBookDone(db: D1Database, id: string, htmlR2Key: string
 export async function deleteBook(db: D1Database, id: string): Promise<void> {
   await db.prepare('DELETE FROM books WHERE id = ?').bind(id).run();
 }
+
+export interface BookProgress {
+  id: string;
+  status: string;
+  total_chapters: number;
+  illustrated_chapters: number;
+  editing_chapters: number;
+  draft_chapters: number;
+}
+
+export async function getBookProgress(
+  db: D1Database,
+  id: string
+): Promise<BookProgress | null> {
+  const book = await db
+    .prepare('SELECT id, status FROM books WHERE id = ?')
+    .bind(id)
+    .first<{ id: string; status: string }>();
+  if (!book) return null;
+
+  const counts = await db
+    .prepare(
+      `SELECT
+         COUNT(*) AS total_chapters,
+         SUM(CASE WHEN status = 'illustrated' THEN 1 ELSE 0 END) AS illustrated_chapters,
+         SUM(CASE WHEN status = 'editing' THEN 1 ELSE 0 END) AS editing_chapters,
+         SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) AS draft_chapters
+       FROM chapters WHERE book_id = ?`
+    )
+    .bind(id)
+    .first<{
+      total_chapters: number;
+      illustrated_chapters: number;
+      editing_chapters: number;
+      draft_chapters: number;
+    }>();
+
+  return {
+    id: book.id,
+    status: book.status,
+    total_chapters: counts?.total_chapters ?? 0,
+    illustrated_chapters: counts?.illustrated_chapters ?? 0,
+    editing_chapters: counts?.editing_chapters ?? 0,
+    draft_chapters: counts?.draft_chapters ?? 0,
+  };
+}

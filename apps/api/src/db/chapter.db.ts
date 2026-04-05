@@ -85,3 +85,87 @@ export async function listChaptersForAssemble(
     .all<ChapterForAssemble>();
   return results;
 }
+
+export async function updateChapterStatus(
+  db: D1Database,
+  chapterId: number,
+  status: 'draft' | 'editing' | 'illustrated'
+): Promise<void> {
+  await db
+    .prepare(`UPDATE chapters SET status = ? WHERE id = ?`)
+    .bind(status, chapterId)
+    .run();
+}
+
+export interface ChapterGridItem {
+  id: number;
+  number: number;
+  title: string;
+  content_preview: string;
+  status: string;
+  scene_count: number;
+}
+
+export async function listChaptersForGrid(
+  db: D1Database,
+  bookId: string
+): Promise<ChapterGridItem[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT ch.id, ch.number, ch.title,
+              SUBSTR(ch.content, 1, 220) AS content_preview,
+              ch.status,
+              COUNT(s.id) AS scene_count
+       FROM chapters ch
+       LEFT JOIN scenes s ON s.chapter_id = ch.id
+       WHERE ch.book_id = ?
+       GROUP BY ch.id
+       ORDER BY ch.number`
+    )
+    .bind(bookId)
+    .all<ChapterGridItem>();
+  return results;
+}
+
+export interface ChapterFull {
+  id: number;
+  number: number;
+  title: string;
+  content: string;
+  status: string;
+}
+
+export async function getChapterFull(
+  db: D1Database,
+  bookId: string,
+  number: number
+): Promise<ChapterFull | null> {
+  return db
+    .prepare(
+      `SELECT id, number, title, content, status
+       FROM chapters WHERE book_id = ? AND number = ?`
+    )
+    .bind(bookId, number)
+    .first<ChapterFull>();
+}
+
+export interface ChapterForNewAssemble {
+  id: number;
+  number: number;
+  title: string;
+  content: string;
+}
+
+export async function listChaptersForNewAssemble(
+  db: D1Database,
+  bookId: string
+): Promise<ChapterForNewAssemble[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, number, title, content
+       FROM chapters WHERE book_id = ? ORDER BY number`
+    )
+    .bind(bookId)
+    .all<ChapterForNewAssemble>();
+  return results;
+}

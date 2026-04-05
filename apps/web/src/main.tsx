@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import BookDetail from './pages/BookDetail.js';
 import BookList from './pages/BookList.js';
 import BookReader from './pages/BookReader.js';
+import ChapterPage from './pages/ChapterPage.js';
 import Home from './pages/Home.js';
 
 const root = document.getElementById('root');
@@ -16,6 +17,7 @@ createRoot(root).render(
         <Route path="/" element={<Home />} />
         <Route path="/books" element={<BookList />} />
         <Route path="/books/:id" element={<BookDetail />} />
+        <Route path="/books/:id/chapters/:num" element={<ChapterPage />} />
         <Route path="/books/:id/read" element={<BookReader />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

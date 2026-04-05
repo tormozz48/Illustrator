@@ -117,6 +117,15 @@ export class GeminiClient implements AIProvider {
     });
   }
 
+  async generateText(prompt: string): Promise<string> {
+    const result = await this.genAI.models.generateContent({
+      model: TEXT_MODEL,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { responseMimeType: 'application/json' },
+    });
+    return result.text ?? '';
+  }
+
   async generateImage(prompt: string, refs: Buffer[] = []): Promise<Buffer> {
     type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
 

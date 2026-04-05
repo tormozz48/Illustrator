@@ -19,8 +19,9 @@ export interface Book {
     | 'analyzing'
     | 'splitting'
     | 'anchoring'
-    | 'illustrating'
-    | 'assembling'
+    | 'preparing_scenes'
+    | 'ready'
+    | 'publishing'
     | 'done'
     | 'error';
   error_msg: string | null;
@@ -36,6 +37,55 @@ export interface ChapterMeta {
   has_illustration: number;
 }
 
+export interface ChapterGridItem {
+  id: number;
+  number: number;
+  title: string;
+  content_preview: string;
+  status: 'draft' | 'editing' | 'illustrated';
+  scene_count: number;
+}
+
+export interface VariantDetail {
+  id: number;
+  image_url: string;
+  validation_score: number | null;
+  selected: boolean;
+  created_at: string;
+}
+
+export interface SceneDetail {
+  id: number;
+  chapter_id: number;
+  ordinal: number;
+  description: string;
+  visual_description: string;
+  entities: string[];
+  setting: string;
+  mood: string;
+  insert_after_para: number;
+  selected: boolean;
+  variants: VariantDetail[];
+}
+
+export interface ChapterDetail {
+  id: number;
+  number: number;
+  title: string;
+  content: string;
+  status: 'draft' | 'editing' | 'illustrated';
+  scenes: SceneDetail[];
+}
+
+export interface BookProgress {
+  id: string;
+  status: string;
+  total_chapters: number;
+  illustrated_chapters: number;
+  editing_chapters: number;
+  draft_chapters: number;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, init);
   if (!res.ok) {
@@ -43,6 +93,18 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(body.error ?? `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
+}
+
+function apiJsonFetch<T>(
+  path: string,
+  method: string,
+  body: Record<string, unknown>
+): Promise<T> {
+  return apiFetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 export const api = {
@@ -76,6 +138,54 @@ export const api = {
   /** List chapters for a book */
   listChapters(bookId: string): Promise<ChapterMeta[]> {
     return apiFetch(`/api/books/${bookId}/chapters`);
+  },
+
+  /** Get book progress with chapter status counts */
+  getBookProgress(id: string): Promise<BookProgress> {
+    return apiFetch(`/api/books/${id}/progress`);
+  },
+
+  /** List chapters for book detail grid view */
+  listChaptersGrid(bookId: string): Promise<ChapterGridItem[]> {
+    return apiFetch(`/api/books/${bookId}/chapters`);
+  },
+
+  /** Get detailed chapter with scenes and variants */
+  getChapter(bookId: string, num: number): Promise<ChapterDetail> {
+    return apiFetch(`/api/books/${bookId}/chapters/${num}`);
+  },
+
+  /** Generate images for selected scenes in a chapter */
+  generateImages(
+    bookId: string,
+    num: number,
+    body: { scene_ids: number[]; variant_count: number }
+  ): Promise<{ results: { scene_id: number; variants: VariantDetail[] }[] }> {
+    return apiJsonFetch(`/api/books/${bookId}/chapters/${num}/generate`, 'POST', body);
+  },
+
+  /** Save chapter with selected variants for scenes */
+  saveChapter(
+    bookId: string,
+    num: number,
+    body: { selections: { scene_id: number; variant_id: number | null }[] }
+  ): Promise<ChapterDetail> {
+    return apiJsonFetch(`/api/books/${bookId}/chapters/${num}/save`, 'POST', body);
+  },
+
+  /** Set chapter to editing mode */
+  editChapter(bookId: string, num: number): Promise<ChapterDetail> {
+    return apiFetch(`/api/books/${bookId}/chapters/${num}/edit`, { method: 'POST' });
+  },
+
+  /** Publish the book (assemble and finalize) */
+  publishBook(id: string): Promise<{ html_r2_key: string }> {
+    return apiFetch(`/api/books/${id}/publish`, { method: 'POST' });
+  },
+
+  /** URL to stream a variant image */
+  variantImgUrl(bookId: string, variantId: number): string {
+    return `${BASE}/api/books/${bookId}/chapters/variants/${variantId}/img`;
   },
 
   /** URL to stream a chapter's illustration image */

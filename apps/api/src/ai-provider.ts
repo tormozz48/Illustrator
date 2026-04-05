@@ -14,6 +14,9 @@ export interface AIProvider {
   /** Chapter + bible → key scene for illustration */
   findKeyScene(chapter: RawChapter, bible: CharacterBible): Promise<KeyScene>;
 
+  /** Arbitrary text prompt → response text (for prompts that don't have a dedicated method) */
+  generateText(prompt: string): Promise<string>;
+
   /**
    * Generate an image from a text prompt with optional reference images.
    *

@@ -1,7 +1,7 @@
 /**
  * IllustrateBookWorkflow
  *
- * Cloudflare Workflow that runs the full bookillust pipeline durably.
+ * Cloudflare Workflow that runs the bookillust pipeline up to scene preparation.
  * Each step is automatically retried on failure and its result is persisted
  * in Workflow state so it won't re-run if the Worker restarts.
  *
@@ -9,9 +9,11 @@
  *   1. read-book                     — fetch raw text from R2
  *   2. analyze-and-split             — buildBible + splitIntoChapters (parallel)
  *   3. anchor-{name}                 — generate reference portrait for each primary entity
- *   4. illustrate-batch-{n}-ch{...}  — illustrate chapters in parallel batches (CHAPTER_CONCURRENCY per batch)
- *   5. assemble                      — build reader HTML, upload to R2
- *   6. finalize                      — mark book done in D1
+ *   4. prepare-scenes-batch-{n}-ch{...} — AI-prepare 2-3 scenes per chapter
+ *
+ * After step 4, the workflow stops and book status is set to 'ready'.
+ * User then interactively selects scenes and generates images via API.
+ * Publishing is triggered separately via POST /api/books/:id/publish.
  */
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
@@ -24,9 +26,7 @@ import { updateBookStatus } from '../db/book.db.js';
 import { markJobErrored } from '../db/job.db.js';
 import { analyzeAndSplitStep } from './analyzeAndSplit.step.js';
 import { anchorEntityStep } from './anchor.step.js';
-import { assembleStep } from './assemble.step.js';
-import { finalizeStep } from './finalize.step.js';
-import { illustrateBatchStep } from './illustrateBatch.step.js';
+import { prepareScenesBatchStep } from './prepareScenes.step.js';
 import { readBookStep } from './readBook.step.js';
 import { makeSetStatus } from './setStatus.js';
 
@@ -87,62 +87,38 @@ export class IllustrateBookWorkflow extends WorkflowEntrypoint<Env, IllustrateJo
 
       log.info('workflow.anchored', { bookId, anchorsGenerated: Object.keys(anchorR2Keys).length });
 
-      await setStatus('illustrating');
-      const anchorImages = new Map<string, Buffer>();
-      for (const [name, key] of Object.entries(anchorR2Keys)) {
-        const obj = await BOOKS_BUCKET.get(key);
-        if (obj) {
-          const ab = await obj.arrayBuffer();
-          anchorImages.set(name, Buffer.from(ab));
-        }
-      }
-
-      // ── Parallel chapter illustration in batches ───────────────────
+      // ── Parallel scene preparation in batches ───────────────────────
       // Group chapters into batches of CHAPTER_CONCURRENCY and process
       // each batch concurrently within a single Workflow step.
-      // See ADR-001 for rationale and free-tier budget analysis.
+      await setStatus('preparing_scenes');
       const batches: (typeof rawChapters)[] = [];
       for (let i = 0; i < rawChapters.length; i += CHAPTER_CONCURRENCY) {
         batches.push(rawChapters.slice(i, i + CHAPTER_CONCURRENCY));
       }
 
-      let totalIllustrated = 0;
-      let totalSkipped = 0;
-
       for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
         // biome-ignore lint/style/noNonNullAssertion: batchIdx always < batches.length
         const batch = batches[batchIdx]!;
         const label = batch.map((c) => c.number).join(',');
-        const batchResults = await step.do(`illustrate-batch-${batchIdx}-ch${label}`, () =>
-          illustrateBatchStep({
+        await step.do(`prepare-scenes-batch-${batchIdx}-ch${label}`, () =>
+          prepareScenesBatchStep({
             bookId,
             chapters: batch,
             bible,
-            anchorImages,
             client,
             DB,
-            BOOKS_BUCKET,
           })
         );
-        const succeeded = batchResults.filter((r) => r.imgR2Key !== null).length;
-        const failed = batchResults.filter((r) => r.imgR2Key === null).length;
-        totalIllustrated += succeeded;
-        totalSkipped += failed;
       }
 
-      log.info('workflow.illustrated', {
+      log.info('workflow.scenesReady', {
         bookId,
         batchCount: batches.length,
-        totalIllustrated,
-        totalSkipped,
+        totalChapters: rawChapters.length,
       });
 
-      const htmlR2Key = await step.do('assemble', () =>
-        assembleStep({ setStatus, bookId, bible, DB, BOOKS_BUCKET })
-      );
-      await step.do('finalize', () => finalizeStep({ bookId, htmlR2Key, DB, CACHE }));
-
-      log.info('workflow.complete', { bookId, htmlR2Key, durationMs: Date.now() - startedAt });
+      await setStatus('ready');
+      log.info('workflow.complete', { bookId, durationMs: Date.now() - startedAt });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log.error('workflow.error', { bookId, error: msg, durationMs: Date.now() - startedAt });

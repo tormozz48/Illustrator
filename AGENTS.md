@@ -84,7 +84,22 @@ Examples of comments to avoid:
 - Gemini image generation is rate-limited; keep `--concurrency` low (≤3) unless you have a paid quota.
 - `src/templates/book.eta` uses ETA syntax (`<%= %>`, `<% %>`); not Handlebars or Mustache.
 
-## Database Layer (`apps/api`)
+## API Layer (`apps/api`)
+
+The API is split into three layers:
+
+### Routes (`apps/api/src/api/*.ts`)
+Responsible for request parsing, input validation, calling the service layer, and formatting HTTP responses. No direct DB calls or business logic here.
+
+### Services (`apps/api/src/api/*.service.ts`)
+Contain business logic and orchestrate DB + storage operations. Route handlers import exclusively from service files — never directly from `db/` or `workflow/`.
+
+| File | Responsibility |
+|---|---|
+| `books.service.ts` | Book upload, HTML fetch (with KV cache), publish flow, deletion with R2 cleanup |
+| `chapters.service.ts` | Chapter detail queries, image variant generation via Gemini, save/edit chapter state |
+
+### Database Layer (`apps/api/src/db/`)
 
 All D1 SQL lives in `apps/api/src/db/`, one file per table. No raw `DB.prepare()` calls outside of these files.
 
@@ -96,6 +111,7 @@ All D1 SQL lives in `apps/api/src/db/`, one file per table. No raw `DB.prepare()
 | `anchor.db.ts` | `anchors` | `upsertAnchor` |
 | `illustration.db.ts` | `illustrations` | `upsertIllustration`, `getIllustrationR2Key`, `listIllustrationR2KeysByBook` |
 | `job.db.ts` | `jobs` | `insertJob`, `markJobComplete`, `markJobErrored` |
+| `scene.db.ts` | `scenes`, `scene_variants` | `insertScenes`, `getScenesByChapterId`, `getSceneById`, `getVariantsBySceneId`, `getVariantById`, `insertVariant`, `saveChapterSelections`, `getSelectedScenesForChapter`, `listVariantR2KeysByBook` |
 
 Rules:
 - Add new queries to the matching `*.db.ts` file. If a query spans multiple tables, put it in the file for the primary (driving) table.
