@@ -1,59 +1,11 @@
-/**
- * BookDetail — shows processing progress and chapter grid for ready books.
- * During pipeline: poll every 3s, show stepper + sidebar dashboard
- * When ready: fetch chapter grid, poll progress every 5s, show 3-col grid
- * When done: redirect to reader
- */
 import { useEffect, useState } from 'react';
+import { BookOpen, ChevronLeft, Loader2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import {
-  type Book,
-  type BookProgress,
-  type ChapterGridItem,
-  api,
-} from '../api/client.js';
-import styles from './BookDetail.module.css';
-
-const PIPELINE_STEPS = [
-  { key: 'analyzing', label: 'Analyzing characters & world' },
-  { key: 'splitting', label: 'Splitting into chapters' },
-  { key: 'anchoring', label: 'Building anchor images' },
-  { key: 'preparing_scenes', label: 'Preparing scenes' },
-  { key: 'ready', label: 'Ready for illustration' },
-];
-
-function stepIndex(status: string): number {
-  return PIPELINE_STEPS.findIndex((s) => s.key === status);
-}
-
-function renderStepper(book: Book) {
-  const currentStep = stepIndex(book.status);
-
-  return (
-    <ol className={styles.steps}>
-      {PIPELINE_STEPS.map((step, i) => {
-        const done = i < currentStep;
-        const active = i === currentStep;
-        return (
-          <li
-            key={step.key}
-            className={`${styles.step} ${done ? styles.done : ''} ${active ? styles.active : ''}`}
-          >
-            <span className={styles.stepDot}>{done ? '✓' : active ? '◉' : '○'}</span>
-            <span>{step.label}</span>
-            {active && <span className={styles.spinner} aria-hidden="true" />}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function statusBadgeClass(status: string): string {
-  if (status === 'illustrated') return styles.badgeIllustrated;
-  if (status === 'editing') return styles.badgeEditing;
-  return styles.badgeDraft;
-}
+import { type Book, type BookProgress, type ChapterGridItem, api } from '@/api/client.js';
+import { ChapterCard } from '@/components/book/ChapterCard.js';
+import { ProgressSidebar } from '@/components/book/ProgressSidebar.js';
+import { AppShell } from '@/components/layout/AppShell.js';
+import { Button } from '@/components/ui/button.js';
 
 export default function BookDetail() {
   const { id } = useParams<{ id: string }>();
@@ -64,19 +16,16 @@ export default function BookDetail() {
   const [error, setError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Initial load and pipeline polling
+  // Pipeline polling
   useEffect(() => {
     if (!id) return;
-
     const poll = async () => {
       try {
         const data = await api.getBook(id);
         setBook(data);
-
         if (data.status === 'done') {
           navigate(`/books/${id}/read`, { replace: true });
         } else if (data.status === 'ready') {
-          // Fetch chapter grid when transitioning to ready
           const chapterData = await api.listChaptersGrid(id);
           setChapters(chapterData);
         }
@@ -84,25 +33,21 @@ export default function BookDetail() {
         setError(err instanceof Error ? err.message : 'Failed to load');
       }
     };
-
     poll();
     const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
   }, [id, navigate]);
 
-  // Progress polling (every 5s once ready)
+  // Progress polling (every 5s when ready)
   useEffect(() => {
     if (!id || !book || book.status !== 'ready') return;
-
     const pollProgress = async () => {
       try {
-        const data = await api.getBookProgress(id);
-        setProgress(data);
-      } catch (err) {
-        // Silent fail for progress polling
+        setProgress(await api.getBookProgress(id));
+      } catch {
+        // silent
       }
     };
-
     pollProgress();
     const interval = setInterval(pollProgress, 5000);
     return () => clearInterval(interval);
@@ -111,16 +56,13 @@ export default function BookDetail() {
   // Refetch grid on window focus
   useEffect(() => {
     if (!id || book?.status !== 'ready') return;
-
     const handleFocus = async () => {
       try {
-        const data = await api.listChaptersGrid(id);
-        setChapters(data);
-      } catch (err) {
-        // Silent fail on focus refetch
+        setChapters(await api.listChaptersGrid(id));
+      } catch {
+        // silent
       }
     };
-
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [id, book?.status]);
@@ -130,7 +72,6 @@ export default function BookDetail() {
     setIsPublishing(true);
     try {
       await api.publishBook(id);
-      // Status will transition to 'publishing' then 'done' via polling
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Publish failed');
       setIsPublishing(false);
@@ -139,107 +80,107 @@ export default function BookDetail() {
 
   if (error) {
     return (
-      <main className={styles.main}>
-        <p className={styles.error}>{error}</p>
-        <Link to="/books">← Back to library</Link>
-      </main>
+      <AppShell>
+        <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>
+        <Link to="/books" className="mt-4 inline-block text-sm text-muted-foreground hover:underline">
+          ← Back to library
+        </Link>
+      </AppShell>
     );
   }
 
   if (!book) {
     return (
-      <main className={styles.main}>
-        <p className={styles.muted}>Loading…</p>
-      </main>
+      <AppShell>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          <span className="text-sm">Loading…</span>
+        </div>
+      </AppShell>
     );
   }
 
+  const allIllustrated =
+    progress && progress.total_chapters > 0 &&
+    progress.illustrated_chapters === progress.total_chapters;
+
   return (
-    <main className={styles.main}>
-      <div className={styles.layout}>
-        <div className={styles.content}>
-          <Link to="/books" className={styles.back}>
-            ← Library
-          </Link>
+    <AppShell>
+      {/* Back */}
+      <Button asChild variant="ghost" size="sm" className="mb-6 -ml-2 text-muted-foreground">
+        <Link to="/books">
+          <ChevronLeft className="size-4" />
+          Library
+        </Link>
+      </Button>
 
-          <h1 className={styles.title}>{book.title}</h1>
-          {book.author && <p className={styles.author}>by {book.author}</p>}
+      {/* Book header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">{book.title}</h1>
+        {book.author && (
+          <p className="mt-1 text-muted-foreground">by {book.author}</p>
+        )}
+      </div>
 
-          {book.status === 'error' ? (
-            <div className={styles.errorBox}>
-              <strong>Processing failed</strong>
-              {book.error_msg && <p>{book.error_msg}</p>}
-            </div>
-          ) : book.status === 'ready' || book.status === 'publishing' ? (
-            <>
-              {progress &&
-                progress.total_chapters > 0 &&
-                progress.illustrated_chapters === progress.total_chapters && (
-                  <button
-                    className={styles.publishBtn}
-                    onClick={handlePublish}
-                    disabled={isPublishing}
-                  >
-                    {isPublishing ? 'Publishing…' : '📖 Publish Book'}
-                  </button>
-                )}
-              <div className={styles.grid}>
-                {chapters?.map((ch) => (
-                  <div
-                    key={ch.id}
-                    className={styles.card}
-                    onClick={() => navigate(`/books/${id}/chapters/${ch.number}`)}
-                  >
-                    <div className={styles.cardHeader}>
-                      <span className={styles.chapterNum}>Ch. {ch.number}</span>
-                      <span className={`${styles.statusBadge} ${statusBadgeClass(ch.status)}`}>
-                        {ch.status === 'illustrated'
-                          ? '✓ Illustrated'
-                          : ch.status === 'editing'
-                            ? 'Editing'
-                            : 'Draft'}
-                      </span>
-                    </div>
-                    <h3 className={styles.cardTitle}>{ch.title || `Chapter ${ch.number}`}</h3>
-                    <p className={styles.cardPreview}>{ch.content_preview}</p>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            renderStepper(book)
+      {book.status === 'error' ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+          <p className="font-semibold text-destructive">Processing failed</p>
+          {book.error_msg && (
+            <p className="mt-1 text-sm text-destructive/80">{book.error_msg}</p>
           )}
         </div>
+      ) : (
+        <div className="flex gap-8">
+          {/* Main content */}
+          <div className="min-w-0 flex-1">
+            {(book.status === 'ready' || book.status === 'publishing') ? (
+              <>
+                {allIllustrated && (
+                  <div className="mb-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <BookOpen className="size-5 text-emerald-600 shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-medium text-emerald-800">All chapters illustrated!</p>
+                      <p className="text-sm text-emerald-600">Your book is ready to publish.</p>
+                    </div>
+                    <Button
+                      onClick={handlePublish}
+                      disabled={isPublishing}
+                      className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      {isPublishing ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          Publishing…
+                        </>
+                      ) : (
+                        'Publish Book'
+                      )}
+                    </Button>
+                  </div>
+                )}
 
-        <aside className={styles.sidebar}>
-          <div className={styles.sidebarSection}>
-            <h3>Pipeline</h3>
-            {renderStepper(book)}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {chapters?.map((ch) => (
+                    <ChapterCard key={ch.id} chapter={ch} bookId={id!} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl border bg-muted/20 p-6 text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                <span className="text-sm">Processing your book — see pipeline status →</span>
+              </div>
+            )}
           </div>
 
-          {progress && progress.total_chapters > 0 && (
-            <div className={styles.sidebarSection}>
-              <h3>Chapters</h3>
-              <div className={styles.progressBar}>
-                <div
-                  className={styles.progressFill}
-                  style={{
-                    width: `${(progress.illustrated_chapters / progress.total_chapters) * 100}%`,
-                  }}
-                />
-              </div>
-              <p className={styles.progressText}>
-                {progress.illustrated_chapters} / {progress.total_chapters} illustrated
-              </p>
-              <div className={styles.chapterCounts}>
-                <span>Draft: {progress.draft_chapters}</span>
-                <span>Editing: {progress.editing_chapters}</span>
-                <span>✓ {progress.illustrated_chapters}</span>
-              </div>
+          {/* Sidebar */}
+          <aside className="w-64 shrink-0">
+            <div className="rounded-xl border bg-card p-5 shadow-sm">
+              <ProgressSidebar book={book} progress={progress} />
             </div>
-          )}
-        </aside>
-      </div>
-    </main>
+          </aside>
+        </div>
+      )}
+    </AppShell>
   );
 }

@@ -3,8 +3,8 @@ import { getLogger } from '../logger.js';
 import type { Env } from '../types.js';
 import {
   getBook,
-  getBookHtml,
   getBookProgress,
+  getBookReaderData,
   listBooks,
   publishBook,
   removeBook,
@@ -14,7 +14,6 @@ import {
 const books = new Hono<{ Bindings: Env }>();
 
 // ── POST /api/books ─────────────────────────────────────────────────────────
-// Upload a .txt file and enqueue an illustration job.
 books.post('/', async (ctx) => {
   const contentType = ctx.req.header('content-type') ?? '';
   if (!contentType.includes('multipart/form-data')) {
@@ -55,20 +54,21 @@ books.get('/:id', async (ctx) => {
   return ctx.json(row);
 });
 
-// ── GET /api/books/:id/read ──────────────────────────────────────────────────
-// Returns the assembled HTML reader (served from R2 or cached in KV).
-books.get('/:id/read', async (ctx) => {
+// ── GET /api/books/:id/reader-data ───────────────────────────────────────────
+// Returns all chapters with content and selected illustration URLs for client-side rendering.
+books.get('/:id/reader-data', async (ctx) => {
   const id = ctx.req.param('id');
-  const result = await getBookHtml({ env: ctx.env, id });
 
-  if (result.kind === 'not_found') return ctx.json({ error: 'Not found' }, 404);
-  if (result.kind === 'not_ready')
-    return ctx.json({ error: 'Book not ready yet', status: result.status }, 409);
-  if (result.kind === 'missing') return ctx.json({ error: 'HTML not found in storage' }, 500);
+  const book = await getBook(ctx.env.DB, id);
+  if (!book) return ctx.json({ error: 'Not found' }, 404);
+  if (book.status !== 'done') {
+    return ctx.json({ error: 'Book not ready yet', status: book.status }, 409);
+  }
 
-  return new Response(result.html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  });
+  const data = await getBookReaderData({ db: ctx.env.DB, bookId: id });
+  if (!data) return ctx.json({ error: 'Not found' }, 404);
+
+  return ctx.json(data);
 });
 
 // ── GET /api/books/:id/progress ─────────────────────────────────────────────
@@ -99,8 +99,8 @@ books.post('/:id/publish', async (ctx) => {
   }
 
   try {
-    const { htmlR2Key } = await publishBook({ env: ctx.env, id });
-    return ctx.json({ html_r2_key: htmlR2Key });
+    await publishBook({ env: ctx.env, id });
+    return ctx.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     getLogger().error('api.book.publishFailed', { bookId: id, error: msg });

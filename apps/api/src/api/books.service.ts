@@ -2,19 +2,20 @@ import { nanoid } from 'nanoid';
 import {
   deleteBook,
   getBook,
+  getBookMeta,
   getBookProgress,
   getBookR2Keys,
-  getBookReadInfo,
   insertBook,
   listBooks,
   markBookDone,
   updateBookStatus,
 } from '../db/book.db.js';
+import { listChaptersForNewAssemble } from '../db/chapter.db.js';
 import { listIllustrationR2KeysByBook } from '../db/illustration.db.js';
+import { getSelectedScenesForChapter } from '../db/scene.db.js';
 import { listVariantR2KeysByBook } from '../db/scene.db.js';
 import { getLogger } from '../logger.js';
 import type { Env } from '../types.js';
-import { assembleNewStep } from '../workflow/assemble.step.js';
 
 export { listBooks, getBook, getBookProgress };
 
@@ -51,68 +52,94 @@ export async function uploadBook({
   return { id: bookId, title: derivedTitle };
 }
 
-export type BookHtmlResult =
-  | { kind: 'ok'; html: string }
-  | { kind: 'not_found' }
-  | { kind: 'not_ready'; status: string }
-  | { kind: 'missing' };
+// ── Reader data ────────────────────────────────────────────────────────────────
 
-export async function getBookHtml({
-  env,
-  id,
-}: {
-  env: Pick<Env, 'DB' | 'BOOKS_BUCKET' | 'CACHE'>;
+export interface ReaderIllustration {
+  insertAfterParagraph: number;
+  imageUrl: string;
+}
+
+export interface ReaderChapter {
+  number: number;
+  title: string;
+  content: string;
+  illustrations: ReaderIllustration[];
+}
+
+export interface ReaderData {
   id: string;
-}): Promise<BookHtmlResult> {
-  const cacheKey = `html:${id}`;
-  const cached = await env.CACHE.get(cacheKey);
-  if (cached) {
-    getLogger().info('api.book.read.cacheHit', { bookId: id });
-    return { kind: 'ok', html: cached };
+  title: string;
+  author: string | null;
+  chapters: ReaderChapter[];
+}
+
+export async function getBookReaderData({
+  db,
+  bookId,
+  apiBase = '',
+}: {
+  db: D1Database;
+  bookId: string;
+  apiBase?: string;
+}): Promise<ReaderData | null> {
+  const bookRow = await getBookMeta(db, bookId);
+  if (!bookRow) return null;
+
+  const chapterRows = await listChaptersForNewAssemble(db, bookId);
+  const chapters: ReaderChapter[] = [];
+
+  for (const ch of chapterRows) {
+    const selectedScenes = await getSelectedScenesForChapter(db, ch.id);
+    const illustrations: ReaderIllustration[] = [];
+
+    for (const scene of selectedScenes) {
+      if (scene.variant_id != null) {
+        illustrations.push({
+          insertAfterParagraph: scene.insert_after_para,
+          imageUrl: `${apiBase}/api/books/${bookId}/chapters/variants/${scene.variant_id}/img`,
+        });
+      }
+    }
+
+    chapters.push({
+      number: ch.number,
+      title: ch.title,
+      content: ch.content,
+      illustrations,
+    });
   }
 
-  const row = await getBookReadInfo(env.DB, id);
-  if (!row) return { kind: 'not_found' };
-  if (row.status !== 'done') return { kind: 'not_ready', status: row.status };
-  if (!row.html_r2_key) return { kind: 'missing' };
-
-  const obj = await env.BOOKS_BUCKET.get(row.html_r2_key);
-  if (!obj) return { kind: 'missing' };
-
-  const html = await obj.text();
-  await env.CACHE.put(cacheKey, html, { expirationTtl: 3600 });
-  getLogger().info('api.book.read.cacheMiss', { bookId: id });
-
-  return { kind: 'ok', html };
+  return {
+    id: bookId,
+    title: bookRow.title,
+    author: bookRow.author ?? null,
+    chapters,
+  };
 }
+
+// ── Publish ────────────────────────────────────────────────────────────────────
 
 export async function publishBook({
   env,
   id,
 }: {
-  env: Pick<Env, 'DB' | 'BOOKS_BUCKET' | 'CACHE'>;
+  env: Pick<Env, 'DB' | 'CACHE'>;
   id: string;
-}): Promise<{ htmlR2Key: string }> {
+}): Promise<void> {
   await updateBookStatus(env.DB, id, 'publishing');
 
   try {
-    const htmlR2Key = await assembleNewStep({
-      bookId: id,
-      DB: env.DB,
-      BOOKS_BUCKET: env.BOOKS_BUCKET,
-    });
-
-    await markBookDone(env.DB, id, htmlR2Key);
+    await markBookDone(env.DB, id);
     await env.CACHE.delete(`html:${id}`);
-    getLogger().info('api.book.published', { bookId: id, htmlR2Key });
-
-    return { htmlR2Key };
+    getLogger().info('api.book.published', { bookId: id });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateBookStatus(env.DB, id, 'error', msg);
     throw err;
   }
 }
+
+// ── Delete ────────────────────────────────────────────────────────────────────
 
 export async function removeBook({
   env,

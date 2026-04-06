@@ -77,7 +77,11 @@ export async function updateBookStatus(
     .run();
 }
 
-export async function markBookDone(db: D1Database, id: string, htmlR2Key: string): Promise<void> {
+export async function markBookDone(
+  db: D1Database,
+  id: string,
+  htmlR2Key: string | null = null
+): Promise<void> {
   await db
     .prepare(
       `UPDATE books

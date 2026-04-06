@@ -2,11 +2,7 @@
  * Typed API client — thin wrappers over fetch that talk to the Worker.
  *
  * In development: Vite proxies /api → localhost:8787 (see vite.config.ts).
- * In production:  set VITE_API_BASE to the deployed Worker URL, e.g.
- *                 https://illustrator-api.<account>.workers.dev
- *
- * If VITE_API_BASE is not set the client uses a relative path (same-origin),
- * which works when Pages and the Worker share a custom domain.
+ * In production:  set VITE_API_BASE to the deployed Worker URL.
  */
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') ?? '';
 
@@ -86,6 +82,25 @@ export interface BookProgress {
   draft_chapters: number;
 }
 
+export interface ReaderIllustration {
+  insertAfterParagraph: number;
+  imageUrl: string;
+}
+
+export interface ReaderChapter {
+  number: number;
+  title: string;
+  content: string;
+  illustrations: ReaderIllustration[];
+}
+
+export interface ReaderData {
+  id: string;
+  title: string;
+  author: string | null;
+  chapters: ReaderChapter[];
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, init);
   if (!res.ok) {
@@ -95,11 +110,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function apiJsonFetch<T>(
-  path: string,
-  method: string,
-  body: Record<string, unknown>
-): Promise<T> {
+function apiJsonFetch<T>(path: string, method: string, body: Record<string, unknown>): Promise<T> {
   return apiFetch(path, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -108,7 +119,6 @@ function apiJsonFetch<T>(
 }
 
 export const api = {
-  /** Upload a book file and start illustration */
   uploadBook(
     file: File,
     title?: string,
@@ -116,55 +126,35 @@ export const api = {
   ): Promise<Pick<Book, 'id' | 'title' | 'status'>> {
     const form = new FormData();
     form.append('file', file);
-    if (title) {
-      form.append('title', title);
-    }
-    if (author) {
-      form.append('author', author);
-    }
+    if (title) form.append('title', title);
+    if (author) form.append('author', author);
     return apiFetch('/api/books', { method: 'POST', body: form });
   },
 
-  /** List all books */
   listBooks(): Promise<Book[]> {
     return apiFetch('/api/books');
   },
 
-  /** Get a single book's status */
   getBook(id: string): Promise<Book> {
     return apiFetch(`/api/books/${id}`);
   },
 
-  /** List chapters for a book */
-  listChapters(bookId: string): Promise<ChapterMeta[]> {
-    return apiFetch(`/api/books/${bookId}/chapters`);
-  },
-
-  /** Get book progress with chapter status counts */
   getBookProgress(id: string): Promise<BookProgress> {
     return apiFetch(`/api/books/${id}/progress`);
   },
 
-  /** List chapters for book detail grid view */
   listChaptersGrid(bookId: string): Promise<ChapterGridItem[]> {
     return apiFetch(`/api/books/${bookId}/chapters`);
   },
 
-  /** Get detailed chapter with scenes and variants */
   getChapter(bookId: string, num: number): Promise<ChapterDetail> {
     return apiFetch(`/api/books/${bookId}/chapters/${num}`);
   },
 
-  /** Generate images for selected scenes in a chapter */
-  generateImages(
-    bookId: string,
-    num: number,
-    body: { scene_ids: number[]; variant_count: number }
-  ): Promise<{ results: { scene_id: number; variants: VariantDetail[] }[] }> {
-    return apiJsonFetch(`/api/books/${bookId}/chapters/${num}/generate`, 'POST', body);
+  getBookReaderData(bookId: string): Promise<ReaderData> {
+    return apiFetch(`/api/books/${bookId}/reader-data`);
   },
 
-  /** Save chapter with selected variants for scenes */
   saveChapter(
     bookId: string,
     num: number,
@@ -173,28 +163,66 @@ export const api = {
     return apiJsonFetch(`/api/books/${bookId}/chapters/${num}/save`, 'POST', body);
   },
 
-  /** Set chapter to editing mode */
   editChapter(bookId: string, num: number): Promise<ChapterDetail> {
     return apiFetch(`/api/books/${bookId}/chapters/${num}/edit`, { method: 'POST' });
   },
 
-  /** Publish the book (assemble and finalize) */
-  publishBook(id: string): Promise<{ html_r2_key: string }> {
+  publishBook(id: string): Promise<{ ok: boolean }> {
     return apiFetch(`/api/books/${id}/publish`, { method: 'POST' });
   },
 
-  /** URL to stream a variant image */
   variantImgUrl(bookId: string, variantId: number): string {
     return `${BASE}/api/books/${bookId}/chapters/variants/${variantId}/img`;
   },
 
-  /** URL to stream a chapter's illustration image */
-  chapterImgUrl(bookId: string, chapterNum: number): string {
-    return `${BASE}/api/books/${bookId}/chapters/${chapterNum}/img`;
-  },
-
-  /** Delete a book and all its data */
   deleteBook(id: string): Promise<{ deleted: boolean }> {
     return apiFetch(`/api/books/${id}`, { method: 'DELETE' });
   },
 };
+
+export type GenerateStreamEvent =
+  | { type: 'variant'; scene_id: number; variant: VariantDetail }
+  | { type: 'scene_done'; scene_id: number }
+  | { type: 'done' }
+  | { type: 'error'; message: string };
+
+/** Stream image generation results as they arrive (SSE via fetch). */
+export async function* generateImagesStream(
+  bookId: string,
+  num: number,
+  body: { scene_ids: number[]; variant_count: number }
+): AsyncGenerator<GenerateStreamEvent> {
+  const response = await fetch(`${BASE}/api/books/${bookId}/chapters/${num}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const b = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(b.error ?? `HTTP ${response.status}`);
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() ?? '';
+
+      for (const event of events) {
+        const dataLine = event.split('\n').find((l) => l.startsWith('data: '));
+        if (!dataLine) continue;
+        yield JSON.parse(dataLine.slice(6)) as GenerateStreamEvent;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

@@ -123,7 +123,16 @@ export class GeminiClient implements AIProvider {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: { responseMimeType: 'application/json' },
     });
-    return result.text ?? '';
+    if (!result.text) {
+      const finishReason = result.candidates?.[0]?.finishReason ?? 'no-candidates';
+      const blockReason =
+        (result as unknown as { promptFeedback?: { blockReason?: string } }).promptFeedback
+          ?.blockReason ?? 'none';
+      throw new Error(
+        `generateText: empty response — finishReason=${finishReason}, blockReason=${blockReason}`
+      );
+    }
+    return result.text;
   }
 
   async generateImage(prompt: string, refs: Buffer[] = []): Promise<Buffer> {

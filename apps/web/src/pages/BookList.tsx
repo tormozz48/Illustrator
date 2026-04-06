@@ -1,29 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Library, PlusCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { type Book, api } from '../api/client.js';
-import styles from './BookList.module.css';
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Queued',
-  analyzing: 'Analyzing…',
-  splitting: 'Splitting chapters…',
-  anchoring: 'Building anchors…',
-  preparing_scenes: 'Preparing scenes…',
-  ready: 'Ready for illustration',
-  publishing: 'Publishing…',
-  illustrating: 'Generating illustrations…',
-  assembling: 'Assembling reader…',
-  done: 'Done',
-  error: 'Error',
-};
-
-function StatusBadge({ status }: { status: Book['status'] }) {
-  return (
-    <span className={`${styles.badge} ${styles[`badge_${status}`]}`}>
-      {STATUS_LABELS[status] ?? status}
-    </span>
-  );
-}
+import { type Book, api } from '@/api/client.js';
+import { BookCard } from '@/components/book/BookCard.js';
+import { AppShell } from '@/components/layout/AppShell.js';
+import { Button } from '@/components/ui/button.js';
 
 export default function BookList() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -43,7 +24,6 @@ export default function BookList() {
 
   useEffect(() => {
     load();
-    // Poll every 5 s if any book is in-progress
     const interval = setInterval(() => {
       const hasPending = books.some((b) => b.status !== 'done' && b.status !== 'error');
       if (hasPending) load();
@@ -52,72 +32,59 @@ export default function BookList() {
   }, [books.length]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this book and all its illustrations?')) return;
     await api.deleteBook(id);
     setBooks((prev) => prev.filter((b) => b.id !== id));
   };
 
   return (
-    <main className={styles.main}>
-      <header className={styles.header}>
-        <h1>Your Library</h1>
-        <Link to="/" className={styles.uploadBtn}>
-          + Upload book
-        </Link>
-      </header>
+    <AppShell>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Library className="size-5 text-muted-foreground" />
+          <h1 className="text-2xl font-bold tracking-tight">Your Library</h1>
+        </div>
+        <Button asChild variant="default" size="sm">
+          <Link to="/">
+            <PlusCircle className="size-4" />
+            Upload book
+          </Link>
+        </Button>
+      </div>
 
-      {loading && <p className={styles.muted}>Loading…</p>}
-      {error && <p className={styles.error}>{error}</p>}
-
-      {!loading && books.length === 0 && (
-        <p className={styles.empty}>
-          No books yet. <Link to="/">Upload one!</Link>
+      {error && (
+        <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
+          {error}
         </p>
       )}
 
-      <ul className={styles.list}>
-        {books.map((book) => (
-          <li key={book.id} className={styles.card}>
-            <div className={styles.cardMain}>
-              <div className={styles.cardTitle}>
-                {book.status === 'done' ? (
-                  <Link to={`/books/${book.id}/read`}>{book.title}</Link>
-                ) : (
-                  <span>{book.title}</span>
-                )}
-              </div>
-              {book.author && <div className={styles.cardAuthor}>by {book.author}</div>}
-              <div className={styles.cardMeta}>
-                <StatusBadge status={book.status} />
-                {book.error_msg && (
-                  <span className={styles.errorMsg} title={book.error_msg}>
-                    ⚠ {book.error_msg.slice(0, 80)}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className={styles.cardActions}>
-              {book.status === 'done' && (
-                <Link to={`/books/${book.id}/read`} className={styles.readBtn}>
-                  Read
-                </Link>
-              )}
-              {(book.status === 'pending' || book.status !== 'done') && book.status !== 'error' && (
-                <Link to={`/books/${book.id}`} className={styles.progressBtn}>
-                  Progress
-                </Link>
-              )}
-              <button
-                className={styles.deleteBtn}
-                onClick={() => handleDelete(book.id)}
-                aria-label="Delete book"
-              >
-                🗑
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </main>
+      {loading && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-36 rounded-xl border bg-muted/30 animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {!loading && books.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed py-16 text-center">
+          <Library className="size-10 text-muted-foreground/50" />
+          <div>
+            <p className="font-medium text-muted-foreground">No books yet</p>
+            <p className="text-sm text-muted-foreground">Upload a .txt file to get started</p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/">Upload your first book</Link>
+          </Button>
+        </div>
+      )}
+
+      {!loading && books.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {books.map((book) => (
+            <BookCard key={book.id} book={book} onDelete={handleDelete} />
+          ))}
+        </div>
+      )}
+    </AppShell>
   );
 }

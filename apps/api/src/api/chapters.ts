@@ -69,6 +69,8 @@ chapters.get('/:num', async (ctx) => {
 });
 
 // ── POST /api/books/:id/chapters/:num/generate ───────────────────────────────
+// Returns an SSE stream: each variant is emitted as it's generated.
+// Events: { type: 'variant', scene_id, variant } | { type: 'scene_done', scene_id } | { type: 'done' } | { type: 'error', message }
 chapters.post('/:num/generate', async (ctx) => {
   const bookId = ctx.req.param('id');
   const num = Number.parseInt(ctx.req.param('num') ?? '', 10);
@@ -89,18 +91,54 @@ chapters.post('/:num/generate', async (ctx) => {
     return ctx.json({ error: 'Invalid request body' }, 400);
   }
 
-  const result = await generateVariants({
-    env: ctx.env,
-    bookId,
-    num,
-    sceneIds: scene_ids,
-    variantCount: variant_count,
+  const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = writable.getWriter();
+
+  const sendEvent = (data: unknown) =>
+    writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+
+  // Run generation asynchronously; Worker stays alive while stream is open
+  (async () => {
+    try {
+      const result = await generateVariants({
+        env: ctx.env,
+        bookId,
+        num,
+        sceneIds: scene_ids,
+        variantCount: variant_count,
+        onVariant: async (sceneId, variant) => {
+          await sendEvent({ type: 'variant', scene_id: sceneId, variant });
+        },
+        onSceneDone: async (sceneId) => {
+          await sendEvent({ type: 'scene_done', scene_id: sceneId });
+        },
+      });
+
+      if (result.kind === 'chapter_not_found') {
+        await sendEvent({ type: 'error', message: 'Chapter not found' });
+      } else if (result.kind === 'bible_not_found') {
+        await sendEvent({ type: 'error', message: 'Bible not found' });
+      } else {
+        await sendEvent({ type: 'done' });
+      }
+    } catch (err) {
+      await sendEvent({
+        type: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      await writer.close();
+    }
+  })();
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'X-Accel-Buffering': 'no',
+    },
   });
-
-  if (result.kind === 'chapter_not_found') return ctx.json({ error: 'Chapter not found' }, 404);
-  if (result.kind === 'bible_not_found') return ctx.json({ error: 'Bible not found' }, 404);
-
-  return ctx.json({ results: result.results });
 });
 
 // ── POST /api/books/:id/chapters/:num/save ──────────────────────────────────

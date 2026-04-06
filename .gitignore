@@ -9,3 +9,5 @@ output/
 tsup.config.bundled_*.mjs
 .claude
 apps/**/.wrangler
+apps/web/vite.config.ts.*
+apps/web/src/**/*.js

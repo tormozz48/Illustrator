@@ -1,36 +1,37 @@
-/**
- * ChapterPage — edit chapter with scene selection, image generation, and variant picking.
- * Left: full chapter text with inline illustrations
- * Right: scene list with checkboxes, variant gallery, and generation/save controls
- */
 import { useEffect, useState } from 'react';
+import { ChevronLeft, Loader2, Save, Sparkles } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { type ChapterDetail, api } from '../api/client.js';
-import styles from './ChapterPage.module.css';
+import { type ChapterDetail, api, generateImagesStream } from '@/api/client.js';
+import { ChapterTextView } from '@/components/chapter/ChapterTextView.js';
+import { SceneCard } from '@/components/chapter/SceneCard.js';
+import { AppShell } from '@/components/layout/AppShell.js';
+import { Badge } from '@/components/ui/badge.js';
+import { Button } from '@/components/ui/button.js';
+import { Label } from '@/components/ui/label.js';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.js';
+import { Separator } from '@/components/ui/separator.js';
+
+const STATUS_VARIANT: Record<string, 'outline' | 'success' | 'warning'> = {
+  draft: 'outline',
+  editing: 'warning',
+  illustrated: 'success',
+};
 
 export default function ChapterPage() {
   const { id, num } = useParams<{ id: string; num: string }>();
   const navigate = useNavigate();
   const chapterNum = Number.parseInt(num ?? '', 10);
 
-  // State
   const [chapter, setChapter] = useState<ChapterDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Scene selection state: which scenes are checked for generation
   const [selectedSceneIds, setSelectedSceneIds] = useState<Set<number>>(new Set());
-  // Which variant is selected per scene: Map<sceneId, variantId | null>
-  const [selectedVariants, setSelectedVariants] = useState<Map<number, number | null>>(
-    new Map()
-  );
-  // Variant count to generate
+  const [selectedVariants, setSelectedVariants] = useState<Map<number, number | null>>(new Map());
   const [variantCount, setVariantCount] = useState(2);
-  // Per-scene generation loading
   const [generatingScenes, setGeneratingScenes] = useState<Set<number>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
 
-  // On mount: load chapter, if illustrated set to editing
   useEffect(() => {
     if (!id || Number.isNaN(chapterNum)) return;
     loadChapter();
@@ -41,15 +42,12 @@ export default function ChapterPage() {
     try {
       const data = await api.getChapter(id!, chapterNum);
       setChapter(data);
-      // Initialize variant selections from existing data
       const variantMap = new Map<number, number | null>();
       for (const scene of data.scenes) {
-        const selectedVariant = scene.variants.find((v) => v.selected);
-        variantMap.set(scene.id, selectedVariant?.id ?? null);
+        const sel = scene.variants.find((v) => v.selected);
+        variantMap.set(scene.id, sel?.id ?? null);
       }
       setSelectedVariants(variantMap);
-
-      // If chapter is illustrated, set to editing
       if (data.status === 'illustrated') {
         try {
           const updated = await api.editChapter(id!, chapterNum);
@@ -70,20 +68,33 @@ export default function ChapterPage() {
     const sceneIds = Array.from(selectedSceneIds);
     setGeneratingScenes(new Set(sceneIds));
     try {
-      const result = await api.generateImages(id, chapterNum, {
+      for await (const event of generateImagesStream(id, chapterNum, {
         scene_ids: sceneIds,
         variant_count: variantCount,
-      });
-      // Merge new variants into chapter state
-      setChapter((prev) => {
-        if (!prev) return prev;
-        const updatedScenes = prev.scenes.map((scene) => {
-          const sceneResult = result.results.find((r) => r.scene_id === scene.id);
-          if (!sceneResult) return scene;
-          return { ...scene, variants: [...scene.variants, ...sceneResult.variants] };
-        });
-        return { ...prev, scenes: updatedScenes };
-      });
+      })) {
+        if (event.type === 'variant') {
+          setChapter((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  scenes: prev.scenes.map((s) =>
+                    s.id !== event.scene_id
+                      ? s
+                      : { ...s, variants: [...s.variants, event.variant] }
+                  ),
+                }
+              : prev
+          );
+        } else if (event.type === 'scene_done') {
+          setGeneratingScenes((prev) => {
+            const next = new Set(prev);
+            next.delete(event.scene_id);
+            return next;
+          });
+        } else if (event.type === 'error') {
+          throw new Error(event.message);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
@@ -95,14 +106,10 @@ export default function ChapterPage() {
     if (!id || !chapter) return;
     setIsSaving(true);
     try {
-      // Build selections for all scenes the user interacted with.
-      // variant_id may be null — meaning the user explicitly chose not to illustrate that scene.
-      // The backend accepts null and saves it as "scene selected, no image".
       const selections = chapter.scenes.map((scene) => ({
         scene_id: scene.id,
         variant_id: selectedVariants.get(scene.id) ?? null,
       }));
-
       await api.saveChapter(id, chapterNum, { selections });
       navigate(`/books/${id}`);
     } catch (err) {
@@ -111,221 +118,156 @@ export default function ChapterPage() {
     }
   }
 
-  // Render inline illustrations in the chapter text
-  function renderChapterText() {
-    if (!chapter) return null;
-    const paragraphs = chapter.content
-      .split('\n\n')
-      .map((p) => p.trim())
-      .filter(Boolean);
-
-    // Build map: insert_after_para → selected variant image URLs
-    const illustrationsAt = new Map<number, string[]>();
-    for (const scene of chapter.scenes) {
-      const selVariantId = selectedVariants.get(scene.id);
-      if (selVariantId != null) {
-        const variant = scene.variants.find((v) => v.id === selVariantId);
-        if (variant) {
-          const urls = illustrationsAt.get(scene.insert_after_para) ?? [];
-          urls.push(variant.image_url);
-          illustrationsAt.set(scene.insert_after_para, urls);
-        }
-      }
-    }
-
-    const elements: React.ReactNode[] = [];
-    for (let i = 0; i < paragraphs.length; i++) {
-      elements.push(
-        <p key={`p-${i}`} className={styles.paragraph}>
-          {paragraphs[i]}
-        </p>
-      );
-      const imgs = illustrationsAt.get(i);
-      if (imgs) {
-        for (const url of imgs) {
-          elements.push(
-            <figure key={`fig-${i}-${url}`} className={styles.inlineIllustration}>
-              <img src={url} alt="Scene illustration" />
-            </figure>
-          );
-        }
-      }
-    }
-    return elements;
-  }
-
   if (loading) {
     return (
-      <main className={styles.main}>
-        <p className={styles.muted}>Loading chapter…</p>
-      </main>
+      <AppShell>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          <span className="text-sm">Loading chapter…</span>
+        </div>
+      </AppShell>
     );
   }
 
-  if (error) {
+  if (error || !chapter) {
     return (
-      <main className={styles.main}>
-        <p className={styles.error}>{error}</p>
+      <AppShell>
+        <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error ?? 'Chapter not found'}
+        </p>
         {id && (
-          <Link to={`/books/${id}`} className={styles.backLink}>
-            ← Back to book
-          </Link>
+          <Button asChild variant="ghost" size="sm" className="mt-3">
+            <Link to={`/books/${id}`}>← Back to book</Link>
+          </Button>
         )}
-      </main>
-    );
-  }
-
-  if (!chapter) {
-    return (
-      <main className={styles.main}>
-        <p className={styles.error}>Chapter not found</p>
-      </main>
+      </AppShell>
     );
   }
 
   return (
-    <main className={styles.main}>
-      <div className={styles.topBar}>
-        <Link to={`/books/${id}`} className={styles.back}>
-          ← Back to book
-        </Link>
-        <div className={styles.chapterMeta}>
-          <span className={styles.chapterNum}>Chapter {chapter.number}</span>
-          <h1 className={styles.title}>{chapter.title}</h1>
+    <AppShell>
+      {/* Top bar */}
+      <div className="mb-6 flex items-center gap-4">
+        <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
+          <Link to={`/books/${id}`}>
+            <ChevronLeft className="size-4" />
+            Book
+          </Link>
+        </Button>
+        <Separator orientation="vertical" className="h-5" />
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="text-xs font-mono text-muted-foreground shrink-0">
+            Chapter {chapter.number}
+          </span>
+          <h1 className="truncate text-lg font-semibold">{chapter.title}</h1>
         </div>
-        <span className={`${styles.statusBadge} ${styles[chapter.status]}`}>
-          {chapter.status}
-        </span>
+        <Badge variant={STATUS_VARIANT[chapter.status]}>{chapter.status}</Badge>
       </div>
 
-      <div className={styles.layout}>
+      {/* Two-column layout */}
+      <div className="flex gap-6 min-h-0">
         {/* Left: chapter text */}
-        <div className={styles.textPanel}>
-          <div className={styles.chapterText}>{renderChapterText()}</div>
+        <div className="flex-1 min-w-0 overflow-y-auto rounded-xl border bg-card p-8 shadow-sm">
+          <ChapterTextView chapter={chapter} selectedVariants={selectedVariants} />
         </div>
 
         {/* Right: scenes panel */}
-        <div className={styles.scenesPanel}>
-          <h2 className={styles.scenesTitle}>Scenes</h2>
-
-          <div className={styles.sceneList}>
-            {chapter.scenes.map((scene) => (
-              <div key={scene.id} className={styles.sceneCard}>
-                <div className={styles.sceneHeader}>
-                  <label className={styles.sceneCheckLabel}>
-                    <input
-                      type="checkbox"
-                      checked={selectedSceneIds.has(scene.id)}
-                      onChange={(e) => {
-                        setSelectedSceneIds((prev) => {
-                          const next = new Set(prev);
-                          if (e.target.checked) next.add(scene.id);
-                          else next.delete(scene.id);
-                          return next;
-                        });
-                      }}
-                    />
-                    <span className={styles.sceneOrdinal}>Scene {scene.ordinal}</span>
-                  </label>
-                  <span className={styles.moodTag}>{scene.mood}</span>
-                </div>
-
-                <p className={styles.sceneDescription}>{scene.description}</p>
-                <p className={styles.visualDescription}>
-                  <em>Visual: {scene.visual_description}</em>
-                </p>
-
-                {scene.entities.length > 0 && (
-                  <div className={styles.entityTags}>
-                    {scene.entities.map((e) => (
-                      <span key={e} className={styles.entityTag}>
-                        {e}
-                      </span>
+        <div className="w-[360px] shrink-0 flex flex-col gap-4">
+          {/* Controls */}
+          <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="variantCount" className="text-sm">
+                  Variants per scene
+                </Label>
+                <Select
+                  value={String(variantCount)}
+                  onValueChange={(v) => setVariantCount(Number(v))}
+                >
+                  <SelectTrigger id="variantCount" size="sm" className="w-16">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
                     ))}
-                  </div>
-                )}
-
-                {/* Variant gallery */}
-                {scene.variants.length > 0 && (
-                  <div className={styles.variantGallery}>
-                    {scene.variants.map((variant) => {
-                      const isSelected = selectedVariants.get(scene.id) === variant.id;
-                      return (
-                        <div
-                          key={variant.id}
-                          className={`${styles.variantThumb} ${isSelected ? styles.variantSelected : ''}`}
-                          onClick={() => {
-                            setSelectedVariants((prev) => {
-                              const next = new Map(prev);
-                              next.set(scene.id, isSelected ? null : variant.id);
-                              return next;
-                            });
-                          }}
-                        >
-                          <img src={variant.image_url} alt={`Variant`} />
-                          {variant.validation_score != null && (
-                            <span
-                              className={`${styles.scoreBadge} ${
-                                variant.validation_score >= 0.8
-                                  ? styles.scoreGood
-                                  : variant.validation_score >= 0.6
-                                    ? styles.scoreMid
-                                    : styles.scoreLow
-                              }`}
-                            >
-                              {variant.validation_score.toFixed(2)}
-                            </span>
-                          )}
-                          {isSelected && <span className={styles.selectedMark}>✓</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {scene.variants.length === 0 && generatingScenes.has(scene.id) && (
-                  <div className={styles.generatingPlaceholder}>
-                    <span>Generating…</span>
-                  </div>
-                )}
+                  </SelectContent>
+                </Select>
               </div>
-            ))}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleGenerate}
+                  disabled={selectedSceneIds.size === 0 || generatingScenes.size > 0}
+                >
+                  {generatingScenes.size > 0 ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="size-3.5" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <Save className="size-3.5" />
+                      Save
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {selectedSceneIds.size > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {selectedSceneIds.size} scene{selectedSceneIds.size !== 1 ? 's' : ''} selected for
+                generation
+              </p>
+            )}
           </div>
 
-          {/* Controls bar */}
-          <div className={styles.controlsBar}>
-            <div className={styles.variantCountRow}>
-              <label htmlFor="variantCount">Variants per scene:</label>
-              <select
-                id="variantCount"
-                value={variantCount}
-                onChange={(e) => setVariantCount(Number(e.target.value))}
-              >
-                {[1, 2, 3, 4].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.actionButtons}>
-              <button
-                className={styles.generateBtn}
-                onClick={handleGenerate}
-                disabled={selectedSceneIds.size === 0 || generatingScenes.size > 0}
-              >
-                {generatingScenes.size > 0 ? 'Generating…' : '✨ Generate'}
-              </button>
-              <button
-                className={styles.saveBtn}
-                onClick={handleSave}
-                disabled={isSaving}
-              >
-                {isSaving ? 'Saving…' : '💾 Save Chapter'}
-              </button>
-            </div>
+          {/* Scene list */}
+          <div className="flex flex-col gap-3 overflow-y-auto">
+            {chapter.scenes.map((scene) => (
+              <SceneCard
+                key={scene.id}
+                scene={scene}
+                isChecked={selectedSceneIds.has(scene.id)}
+                isGenerating={generatingScenes.has(scene.id)}
+                selectedVariantId={selectedVariants.get(scene.id) ?? null}
+                onToggleCheck={(sceneId, checked) => {
+                  setSelectedSceneIds((prev) => {
+                    const next = new Set(prev);
+                    if (checked) next.add(sceneId);
+                    else next.delete(sceneId);
+                    return next;
+                  });
+                }}
+                onSelectVariant={(sceneId, variantId) => {
+                  setSelectedVariants((prev) => {
+                    const next = new Map(prev);
+                    next.set(sceneId, variantId);
+                    return next;
+                  });
+                }}
+              />
+            ))}
           </div>
         </div>
       </div>
-    </main>
+    </AppShell>
   );
 }

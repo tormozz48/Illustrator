@@ -1,10 +1,6 @@
-import { Jimp } from "jimp";
-import { getBible } from "../db/bible.db.js";
-import {
-  getChapterFull,
-  listChaptersForGrid,
-  updateChapterStatus,
-} from "../db/chapter.db.js";
+import { Jimp } from 'jimp';
+import { getBible } from '../db/bible.db.js';
+import { getChapterFull, listChaptersForGrid, updateChapterStatus } from '../db/chapter.db.js';
 import {
   type SceneRow,
   type VariantRow,
@@ -14,11 +10,11 @@ import {
   getVariantsBySceneId,
   insertVariant,
   saveChapterSelections,
-} from "../db/scene.db.js";
-import { GeminiClient } from "../gemini.js";
-import { getLogger } from "../logger.js";
-import type { CharacterBible } from "../schemas/index.js";
-import type { Env } from "../types.js";
+} from '../db/scene.db.js';
+import { GeminiClient } from '../gemini.js';
+import { getLogger } from '../logger.js';
+import type { CharacterBible } from '../schemas/index.js';
+import type { Env } from '../types.js';
 
 export { listChaptersForGrid, getVariantById };
 
@@ -71,7 +67,7 @@ async function buildScenesWithVariants({
         ordinal: scene.ordinal,
         description: scene.description,
         visual_description: scene.visual_description,
-        entities: JSON.parse(scene.entities || "[]") as string[],
+        entities: JSON.parse(scene.entities || '[]') as string[],
         setting: scene.setting,
         mood: scene.mood,
         insert_after_para: scene.insert_after_para,
@@ -133,9 +129,9 @@ export interface GeneratedSceneResult {
 }
 
 export type GenerateVariantsResult =
-  | { kind: "ok"; results: GeneratedSceneResult[] }
-  | { kind: "chapter_not_found" }
-  | { kind: "bible_not_found" };
+  | { kind: 'ok'; results: GeneratedSceneResult[] }
+  | { kind: 'chapter_not_found' }
+  | { kind: 'bible_not_found' };
 
 export async function generateVariants({
   env,
@@ -143,18 +139,22 @@ export async function generateVariants({
   num,
   sceneIds,
   variantCount,
+  onVariant,
+  onSceneDone,
 }: {
-  env: Pick<Env, "DB" | "BOOKS_BUCKET" | "GEMINI_API_KEY">;
+  env: Pick<Env, 'DB' | 'BOOKS_BUCKET' | 'GEMINI_API_KEY'>;
   bookId: string;
   num: number;
   sceneIds: number[];
   variantCount: number;
+  onVariant?: (sceneId: number, variant: GeneratedVariant) => Promise<void>;
+  onSceneDone?: (sceneId: number) => Promise<void>;
 }): Promise<GenerateVariantsResult> {
   const chapter = await getChapterFull(env.DB, bookId, num);
-  if (!chapter) return { kind: "chapter_not_found" };
+  if (!chapter) return { kind: 'chapter_not_found' };
 
   const bibleRow = await getBible(env.DB, bookId);
-  if (!bibleRow) return { kind: "bible_not_found" };
+  if (!bibleRow) return { kind: 'bible_not_found' };
 
   const bible: CharacterBible = JSON.parse(bibleRow.data);
   const client = new GeminiClient(env.GEMINI_API_KEY);
@@ -165,7 +165,7 @@ export async function generateVariants({
     const scene = await getSceneById(env.DB, sceneId);
 
     if (!scene || scene.chapter_id !== chapter.id) {
-      log.warn("generate.sceneNotFound", { bookId, sceneId });
+      log.warn('generate.sceneNotFound', { bookId, sceneId });
       continue;
     }
 
@@ -176,11 +176,11 @@ export async function generateVariants({
         const prompt = buildImagePromptFromScene({ scene, bible });
 
         const refs: Buffer[] = [];
-        const sceneEntityNames = JSON.parse(scene.entities || "[]") as string[];
+        const sceneEntityNames = JSON.parse(scene.entities || '[]') as string[];
         for (const entityName of sceneEntityNames) {
           const entity = bible.entities.find((e) => e.name === entityName);
           if (entity) {
-            const anchorKey = `books/${bookId}/anchors/${entityName.replace(/\s+/g, "_")}.webp`;
+            const anchorKey = `books/${bookId}/anchors/${entityName.replace(/\s+/g, '_')}.webp`;
             const obj = await env.BOOKS_BUCKET.get(anchorKey);
             if (obj) {
               const buf = await obj.arrayBuffer();
@@ -192,18 +192,18 @@ export async function generateVariants({
         const imageBuffer = await client.generateImage(prompt, refs);
 
         let validationScore = 0.5;
-        try {
-          const validation = await client.validateImage(imageBuffer, bible);
-          validationScore = validation.score;
-        } catch {
-          // Skip validation on error
-        }
+        // try {
+        //   const validation = await client.validateImage(imageBuffer, bible);
+        //   validationScore = validation.score;
+        // } catch {
+        //   // Skip validation on error
+        // }
 
         const optimized = await optimizeImage(imageBuffer);
 
         const r2Key = `books/${bookId}/scenes/${sceneId}/v${v + 1}.webp`;
         await env.BOOKS_BUCKET.put(r2Key, Buffer.from(optimized.buffer), {
-          httpMetadata: { contentType: "image/webp" },
+          httpMetadata: { contentType: 'image/webp' },
         });
 
         const variantId = await insertVariant(env.DB, {
@@ -216,15 +216,17 @@ export async function generateVariants({
           validationScore,
         });
 
-        sceneVariants.push({
+        const generated: GeneratedVariant = {
           id: variantId,
           image_url: `/api/books/${bookId}/chapters/variants/${variantId}/img`,
           validation_score: validationScore,
           selected: false,
           created_at: new Date().toISOString(),
-        });
+        };
+        sceneVariants.push(generated);
+        if (onVariant) await onVariant(sceneId, generated);
       } catch (err) {
-        log.error("generate.variantFailed", {
+        log.error('generate.variantFailed', {
           bookId,
           sceneId,
           variant: v + 1,
@@ -234,9 +236,10 @@ export async function generateVariants({
     }
 
     results.push({ scene_id: sceneId, variants: sceneVariants });
+    if (onSceneDone) await onSceneDone(sceneId);
   }
 
-  return { kind: "ok", results };
+  return { kind: 'ok', results };
 }
 
 export async function saveChapter({
@@ -245,7 +248,7 @@ export async function saveChapter({
   num,
   selections,
 }: {
-  env: Pick<Env, "DB">;
+  env: Pick<Env, 'DB'>;
   bookId: string;
   num: number;
   selections: Array<{ scene_id: number; variant_id: number | null }>;
@@ -258,7 +261,7 @@ export async function saveChapter({
     chapter.id,
     selections.map((s) => ({ sceneId: s.scene_id, variantId: s.variant_id }))
   );
-  await updateChapterStatus(env.DB, chapter.id, "illustrated");
+  await updateChapterStatus(env.DB, chapter.id, 'illustrated');
 
   const scenes = await getScenesByChapterId(env.DB, chapter.id);
   const scenesWithVariants = await buildScenesWithVariants({
@@ -272,7 +275,7 @@ export async function saveChapter({
     number: chapter.number,
     title: chapter.title,
     content: chapter.content,
-    status: "illustrated",
+    status: 'illustrated',
     scenes: scenesWithVariants,
   };
 }
@@ -282,14 +285,14 @@ export async function editChapter({
   bookId,
   num,
 }: {
-  env: Pick<Env, "DB">;
+  env: Pick<Env, 'DB'>;
   bookId: string;
   num: number;
 }): Promise<ChapterDetailResult | null> {
   const chapter = await getChapterFull(env.DB, bookId, num);
   if (!chapter) return null;
 
-  await updateChapterStatus(env.DB, chapter.id, "editing");
+  await updateChapterStatus(env.DB, chapter.id, 'editing');
 
   const scenes = await getScenesByChapterId(env.DB, chapter.id);
   const scenesWithVariants = await buildScenesWithVariants({
@@ -303,7 +306,7 @@ export async function editChapter({
     number: chapter.number,
     title: chapter.title,
     content: chapter.content,
-    status: "editing",
+    status: 'editing',
     scenes: scenesWithVariants,
   };
 }
@@ -318,19 +321,17 @@ function buildImagePromptFromScene({
   bible: CharacterBible;
 }): string {
   const { styleGuide, entities, environments } = bible;
-  const sceneEntities = JSON.parse(scene.entities || "[]") as string[];
+  const sceneEntities = JSON.parse(scene.entities || '[]') as string[];
 
-  const presentEntities = entities.filter((e) =>
-    sceneEntities.includes(e.name)
-  );
-  const entityDescs = presentEntities.map(buildEntityDescription).join("\n");
+  const presentEntities = entities.filter((e) => sceneEntities.includes(e.name));
+  const entityDescs = presentEntities.map(buildEntityDescription).join('\n');
 
   const environment = environments.find((env) => env.name === scene.setting);
   const settingDesc = environment
     ? `${environment.visualDescription} Atmosphere: ${environment.atmosphere}. ${
         environment.recurringElements.length > 0
-          ? `Always present: ${environment.recurringElements.join(", ")}.`
-          : ""
+          ? `Always present: ${environment.recurringElements.join(', ')}.`
+          : ''
       }`
     : scene.setting;
 
@@ -344,43 +345,33 @@ function buildImagePromptFromScene({
 
   parts.push(`Negative: ${styleGuide.negativePrompt}`);
 
-  return parts.join("\n\n");
+  return parts.join('\n\n');
 }
 
-function buildEntityDescription(
-  entity: CharacterBible["entities"][number]
-): string {
-  const {
-    name,
-    visualDescription,
-    physicalTraits,
-    distinctiveFeatures,
-    category,
-  } = entity;
+function buildEntityDescription(entity: CharacterBible['entities'][number]): string {
+  const { name, visualDescription, physicalTraits, distinctiveFeatures, category } = entity;
 
   let desc = `${name}: ${visualDescription}`;
-  if (category === "character" && physicalTraits) {
+  if (category === 'character' && physicalTraits) {
     const inline = [
       physicalTraits.age,
       physicalTraits.gender,
       physicalTraits.hairColor &&
-        `${`${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ""}`.trim()} hair`,
+        `${`${physicalTraits.hairColor} ${physicalTraits.hairStyle ?? ''}`.trim()} hair`,
       physicalTraits.eyeColor && `${physicalTraits.eyeColor} eyes`,
       physicalTraits.skinTone && `${physicalTraits.skinTone} skin`,
       physicalTraits.facialFeatures,
       physicalTraits.clothing && `wearing ${physicalTraits.clothing}`,
-      physicalTraits.accessories?.length
-        ? physicalTraits.accessories.join(", ")
-        : undefined,
+      physicalTraits.accessories?.length ? physicalTraits.accessories.join(', ') : undefined,
     ]
       .filter(Boolean)
-      .join(", ");
+      .join(', ');
     if (inline) {
       desc += ` — ${inline}`;
     }
   }
   if (distinctiveFeatures.length > 0) {
-    desc += `. Distinctive: ${distinctiveFeatures.join(", ")}`;
+    desc += `. Distinctive: ${distinctiveFeatures.join(', ')}`;
   }
   return desc;
 }
@@ -398,7 +389,7 @@ async function optimizeImage(imageBuffer: Buffer): Promise<OptimizedImage> {
     image.resize({ w: OUTPUT_WIDTH });
   }
 
-  const webpBuffer = await image.getBuffer("image/png");
+  const webpBuffer = await image.getBuffer('image/png');
 
   return {
     buffer: new Uint8Array(webpBuffer),
