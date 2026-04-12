@@ -1,127 +1,93 @@
-import { type FormEvent, useRef, useState } from 'react';
-import { ArrowRight, BookText, Loader2, Upload } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '@/api/client.js';
-import { AppShell } from '@/components/layout/AppShell.js';
-import { Button } from '@/components/ui/button.js';
-import { Input } from '@/components/ui/input.js';
-import { Label } from '@/components/ui/label.js';
+import {
+  Box, Typography, Card, CardContent, TextField, Button, Alert, CircularProgress,
+} from '@mui/material';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import { uploadBook } from '../api/client';
 
 export default function Home() {
   const navigate = useNavigate();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  async function handleSubmit(e: FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const file = fileRef.current?.files?.[0];
     if (!file) return;
 
-    setUploading(true);
-    setError(null);
-
+    setLoading(true);
+    setError('');
     try {
-      const book = await api.uploadBook(file, title || undefined, author || undefined);
+      const book = await uploadBook(file, title || undefined, author || undefined);
       navigate(`/books/${book.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
-      setUploading(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <AppShell>
-      <div className="mx-auto max-w-lg">
-        {/* Hero */}
-        <div className="mb-10 text-center">
-          <div className="mb-4 flex justify-center">
-            <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10">
-              <BookText className="size-8 text-primary" />
-            </div>
-          </div>
-          <h1 className="mb-2 text-3xl font-bold tracking-tight">Illustrate your book</h1>
-          <p className="text-muted-foreground">
-            Upload a plain-text book and get a beautifully illustrated reading experience powered by
-            AI.
-          </p>
-        </div>
+    <Box sx={{ maxWidth: 600, mx: 'auto', mt: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        Upload a Book
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+        Upload a .txt file and we'll analyze it, split it into chapters,
+        and help you create AI-generated illustrations for each scene.
+      </Typography>
 
-        {/* Upload form */}
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-xl border bg-card p-6 shadow-sm space-y-5"
-        >
-          <div className="space-y-1.5">
-            <Label htmlFor="file">Book file</Label>
-            <div className="relative">
-              <Input
-                id="file"
-                ref={fileRef}
-                type="file"
-                accept=".txt"
-                required
-                disabled={uploading}
-                className="cursor-pointer"
+      <Card>
+        <CardContent>
+          <form onSubmit={handleSubmit}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Button
+                variant="outlined"
+                component="label"
+                startIcon={<CloudUploadIcon />}
+                fullWidth
+                sx={{ py: 2 }}
+              >
+                {file ? file.name : 'Choose .txt file'}
+                <input
+                  type="file"
+                  accept=".txt"
+                  hidden
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                />
+              </Button>
+
+              <TextField
+                label="Title (optional)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                size="small"
               />
-            </div>
-            <p className="text-xs text-muted-foreground">Plain text (.txt), up to 10 MB</p>
-          </div>
+              <TextField
+                label="Author (optional)"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                size="small"
+              />
 
-          <div className="space-y-1.5">
-            <Label htmlFor="title">
-              Title{' '}
-              <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id="title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Auto-detected from filename"
-              disabled={uploading}
-            />
-          </div>
+              {error && <Alert severity="error">{error}</Alert>}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="author">
-              Author{' '}
-              <span className="font-normal text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id="author"
-              type="text"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="e.g. Herman Melville"
-              disabled={uploading}
-            />
-          </div>
-
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <Button type="submit" disabled={uploading} className="w-full gap-2">
-            {uploading ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Uploading…
-              </>
-            ) : (
-              <>
-                <Upload className="size-4" />
-                Illustrate my book
-                <ArrowRight className="size-4" />
-              </>
-            )}
-          </Button>
-        </form>
-      </div>
-    </AppShell>
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                disabled={!file || loading}
+                startIcon={loading ? <CircularProgress size={20} /> : undefined}
+              >
+                {loading ? 'Uploading...' : 'Upload & Process'}
+              </Button>
+            </Box>
+          </form>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }

@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/worker"
+  },
+  "include": ["src/worker/**/*", "src/common/**/*", "src/prompts/**/*"]
+}

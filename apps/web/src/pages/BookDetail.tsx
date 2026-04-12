@@ -1,186 +1,162 @@
-import { useEffect, useState } from 'react';
-import { BookOpen, ChevronLeft, Loader2 } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { type Book, type BookProgress, type ChapterGridItem, api } from '@/api/client.js';
-import { ChapterCard } from '@/components/book/ChapterCard.js';
-import { ProgressSidebar } from '@/components/book/ProgressSidebar.js';
-import { AppShell } from '@/components/layout/AppShell.js';
-import { Button } from '@/components/ui/button.js';
+import { useState, useEffect } from 'react';
+import { useParams, Link as RouterLink } from 'react-router-dom';
+import {
+  Box, Typography, Card, CardContent, CardActions, Button, Chip, Grid,
+  LinearProgress, CircularProgress, Alert, Paper,
+} from '@mui/material';
+import { getBook, getBookProgress, listChapters, publishBook, Book, BookProgress, ChapterGridItem } from '../api/client';
+import { joinBook, leaveBook, onBookStatus } from '../api/socket';
+
+const statusColors: Record<string, 'default' | 'primary' | 'warning' | 'success' | 'error'> = {
+  draft: 'default', editing: 'warning', illustrated: 'success',
+};
 
 export default function BookDetail() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [book, setBook] = useState<Book | null>(null);
-  const [chapters, setChapters] = useState<ChapterGridItem[] | null>(null);
   const [progress, setProgress] = useState<BookProgress | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isPublishing, setIsPublishing] = useState(false);
+  const [chapters, setChapters] = useState<ChapterGridItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const [error, setError] = useState('');
 
-  // Pipeline polling
   useEffect(() => {
     if (!id) return;
-    const poll = async () => {
+    const fetchData = async () => {
       try {
-        const data = await api.getBook(id);
-        setBook(data);
-        if (data.status === 'done') {
-          navigate(`/books/${id}/read`, { replace: true });
-        } else if (data.status === 'ready') {
-          const chapterData = await api.listChaptersGrid(id);
-          setChapters(chapterData);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load');
+        const [b, p, c] = await Promise.all([
+          getBook(id),
+          getBookProgress(id).catch(() => null),
+          listChapters(id).catch(() => []),
+        ]);
+        setBook(b);
+        setProgress(p);
+        setChapters(c);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
     };
-    poll();
-    const interval = setInterval(poll, 3000);
-    return () => clearInterval(interval);
-  }, [id, navigate]);
+    fetchData();
 
-  // Progress polling (every 5s when ready)
-  useEffect(() => {
-    if (!id || !book || book.status !== 'ready') return;
-    const pollProgress = async () => {
-      try {
-        setProgress(await api.getBookProgress(id));
-      } catch {
-        // silent
+    joinBook(id);
+    const unsub = onBookStatus(({ bookId, status }) => {
+      if (bookId === id) {
+        setBook(prev => prev ? { ...prev, status } : prev);
+        // Refetch data when status changes
+        fetchData();
       }
-    };
-    pollProgress();
-    const interval = setInterval(pollProgress, 5000);
-    return () => clearInterval(interval);
-  }, [id, book?.status]);
+    });
 
-  // Refetch grid on window focus
-  useEffect(() => {
-    if (!id || book?.status !== 'ready') return;
-    const handleFocus = async () => {
-      try {
-        setChapters(await api.listChaptersGrid(id));
-      } catch {
-        // silent
-      }
+    // Poll while processing
+    const interval = setInterval(fetchData, 5000);
+
+    return () => {
+      leaveBook(id);
+      unsub();
+      clearInterval(interval);
     };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [id, book?.status]);
+  }, [id]);
 
   const handlePublish = async () => {
     if (!id) return;
-    setIsPublishing(true);
+    setPublishing(true);
     try {
-      await api.publishBook(id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Publish failed');
-      setIsPublishing(false);
+      await publishBook(id);
+      setBook(prev => prev ? { ...prev, status: 'done' } : prev);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setPublishing(false);
     }
   };
 
-  if (error) {
-    return (
-      <AppShell>
-        <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>
-        <Link to="/books" className="mt-4 inline-block text-sm text-muted-foreground hover:underline">
-          ← Back to library
-        </Link>
-      </AppShell>
-    );
-  }
+  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
+  if (!book) return <Alert severity="error">Book not found</Alert>;
 
-  if (!book) {
-    return (
-      <AppShell>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          <span className="text-sm">Loading…</span>
-        </div>
-      </AppShell>
-    );
-  }
-
-  const allIllustrated =
-    progress && progress.total_chapters > 0 &&
-    progress.illustrated_chapters === progress.total_chapters;
+  const isProcessing = ['pending', 'analyzing', 'splitting', 'anchoring', 'preparing_scenes'].includes(book.status);
+  const canPublish = book.status === 'ready' && progress && progress.illustrated === progress.total && progress.total > 0;
 
   return (
-    <AppShell>
-      {/* Back */}
-      <Button asChild variant="ghost" size="sm" className="mb-6 -ml-2 text-muted-foreground">
-        <Link to="/books">
-          <ChevronLeft className="size-4" />
-          Library
-        </Link>
-      </Button>
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Typography variant="h4">{book.title || 'Untitled'}</Typography>
+        <Chip label={book.status} color={isProcessing ? 'primary' : book.status === 'done' ? 'success' : 'warning'} />
+      </Box>
 
-      {/* Book header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">{book.title}</h1>
-        {book.author && (
-          <p className="mt-1 text-muted-foreground">by {book.author}</p>
-        )}
-      </div>
+      {book.author && <Typography variant="subtitle1" color="text.secondary" gutterBottom>by {book.author}</Typography>}
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {book.status === 'error' && <Alert severity="error" sx={{ mb: 2 }}>{book.errorMsg}</Alert>}
 
-      {book.status === 'error' ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-          <p className="font-semibold text-destructive">Processing failed</p>
-          {book.error_msg && (
-            <p className="mt-1 text-sm text-destructive/80">{book.error_msg}</p>
-          )}
-        </div>
-      ) : (
-        <div className="flex gap-8">
-          {/* Main content */}
-          <div className="min-w-0 flex-1">
-            {(book.status === 'ready' || book.status === 'publishing') ? (
-              <>
-                {allIllustrated && (
-                  <div className="mb-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                    <BookOpen className="size-5 text-emerald-600 shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-emerald-800">All chapters illustrated!</p>
-                      <p className="text-sm text-emerald-600">Your book is ready to publish.</p>
-                    </div>
-                    <Button
-                      onClick={handlePublish}
-                      disabled={isPublishing}
-                      className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                      {isPublishing ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Publishing…
-                        </>
-                      ) : (
-                        'Publish Book'
-                      )}
-                    </Button>
-                  </div>
-                )}
-
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {chapters?.map((ch) => (
-                    <ChapterCard key={ch.id} chapter={ch} bookId={id!} />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 rounded-xl border bg-muted/20 p-6 text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                <span className="text-sm">Processing your book — see pipeline status →</span>
-              </div>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <aside className="w-64 shrink-0">
-            <div className="rounded-xl border bg-card p-5 shadow-sm">
-              <ProgressSidebar book={book} progress={progress} />
-            </div>
-          </aside>
-        </div>
+      {isProcessing && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>Processing...</Typography>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Current step: {book.status.replace('_', ' ')}
+          </Typography>
+          <LinearProgress />
+        </Paper>
       )}
-    </AppShell>
+
+      {progress && progress.total > 0 && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>Progress</Typography>
+          <Box sx={{ display: 'flex', gap: 3 }}>
+            <Typography>Total: {progress.total}</Typography>
+            <Typography>Draft: {progress.draft}</Typography>
+            <Typography>Editing: {progress.editing}</Typography>
+            <Typography color="success.main">Illustrated: {progress.illustrated}</Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={(progress.illustrated / progress.total) * 100}
+            sx={{ mt: 2 }}
+          />
+        </Paper>
+      )}
+
+      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+        {canPublish && (
+          <Button variant="contained" onClick={handlePublish} disabled={publishing}>
+            {publishing ? 'Publishing...' : 'Publish Book'}
+          </Button>
+        )}
+        {book.status === 'done' && (
+          <Button variant="contained" color="secondary" component={RouterLink} to={`/books/${id}/read`}>
+            Read Book
+          </Button>
+        )}
+      </Box>
+
+      {chapters.length > 0 && (
+        <>
+          <Typography variant="h5" gutterBottom>Chapters</Typography>
+          <Grid container spacing={2}>
+            {chapters.map(ch => (
+              <Grid item xs={12} sm={6} md={4} key={ch.id}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="subtitle1" fontWeight={600}>
+                      Chapter {ch.number}
+                    </Typography>
+                    {ch.title && <Typography variant="body2" color="text.secondary">{ch.title}</Typography>}
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                      <Chip label={ch.status} size="small" color={statusColors[ch.status] || 'default'} />
+                      <Chip label={`${ch.sceneCount} scenes`} size="small" variant="outlined" />
+                    </Box>
+                  </CardContent>
+                  <CardActions>
+                    <Button component={RouterLink} to={`/books/${id}/chapters/${ch.number}`} size="small">
+                      Open
+                    </Button>
+                  </CardActions>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </>
+      )}
+    </Box>
   );
 }

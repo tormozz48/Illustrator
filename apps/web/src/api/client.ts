@@ -1,228 +1,146 @@
-/**
- * Typed API client — thin wrappers over fetch that talk to the Worker.
- *
- * In development: Vite proxies /api → localhost:8787 (see vite.config.ts).
- * In production:  set VITE_API_BASE to the deployed Worker URL.
- */
-const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') ?? '';
+const API_BASE = '/api';
 
 export interface Book {
   id: string;
-  title: string;
+  title: string | null;
   author: string | null;
-  status:
-    | 'pending'
-    | 'analyzing'
-    | 'splitting'
-    | 'anchoring'
-    | 'preparing_scenes'
-    | 'ready'
-    | 'publishing'
-    | 'done'
-    | 'error';
-  error_msg: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ChapterMeta {
-  id: number;
-  number: number;
-  title: string;
-  insert_after_para: number | null;
-  has_illustration: number;
+  status: string;
+  errorMsg: string | null;
+  createdAt: string;
 }
 
 export interface ChapterGridItem {
   id: number;
   number: number;
-  title: string;
-  content_preview: string;
-  status: 'draft' | 'editing' | 'illustrated';
-  scene_count: number;
-}
-
-export interface VariantDetail {
-  id: number;
-  image_url: string;
-  validation_score: number | null;
-  selected: boolean;
-  created_at: string;
+  title: string | null;
+  status: string;
+  sceneCount: number;
+  contentPreview: string;
 }
 
 export interface SceneDetail {
   id: number;
-  chapter_id: number;
-  ordinal: number;
+  paragraphIndex: number;
   description: string;
-  visual_description: string;
+  visualDescription: string;
   entities: string[];
   setting: string;
   mood: string;
-  insert_after_para: number;
-  selected: boolean;
   variants: VariantDetail[];
+}
+
+export interface VariantDetail {
+  id: number;
+  imageUrl: string;
+  score: number | null;
+  selected: boolean;
+  width: number | null;
+  height: number | null;
 }
 
 export interface ChapterDetail {
   id: number;
   number: number;
-  title: string;
+  title: string | null;
   content: string;
-  status: 'draft' | 'editing' | 'illustrated';
+  status: string;
   scenes: SceneDetail[];
 }
 
 export interface BookProgress {
-  id: string;
-  status: string;
-  total_chapters: number;
-  illustrated_chapters: number;
-  editing_chapters: number;
-  draft_chapters: number;
-}
-
-export interface ReaderIllustration {
-  insertAfterParagraph: number;
-  imageUrl: string;
-}
-
-export interface ReaderChapter {
-  number: number;
-  title: string;
-  content: string;
-  illustrations: ReaderIllustration[];
+  total: number;
+  draft: number;
+  editing: number;
+  illustrated: number;
 }
 
 export interface ReaderData {
-  id: string;
-  title: string;
-  author: string | null;
-  chapters: ReaderChapter[];
+  book: { id: string; title: string | null; author: string | null };
+  chapters: {
+    number: number;
+    title: string | null;
+    content: string;
+    illustrations: { paragraphIndex: number; imageUrl: string }[];
+  }[];
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init);
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-function apiJsonFetch<T>(path: string, method: string, body: Record<string, unknown>): Promise<T> {
-  return apiFetch(path, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { ...options?.headers },
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || res.statusText);
+  }
+  return res.json();
 }
 
-export const api = {
-  uploadBook(
-    file: File,
-    title?: string,
-    author?: string
-  ): Promise<Pick<Book, 'id' | 'title' | 'status'>> {
-    const form = new FormData();
-    form.append('file', file);
-    if (title) form.append('title', title);
-    if (author) form.append('author', author);
-    return apiFetch('/api/books', { method: 'POST', body: form });
-  },
+export async function uploadBook(file: File, title?: string, author?: string): Promise<Book> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (title) formData.append('title', title);
+  if (author) formData.append('author', author);
+  return request<Book>('/books', { method: 'POST', body: formData });
+}
 
-  listBooks(): Promise<Book[]> {
-    return apiFetch('/api/books');
-  },
+export async function listBooks(): Promise<Book[]> {
+  return request<Book[]>('/books');
+}
 
-  getBook(id: string): Promise<Book> {
-    return apiFetch(`/api/books/${id}`);
-  },
+export async function getBook(id: string): Promise<Book> {
+  return request<Book>(`/books/${id}`);
+}
 
-  getBookProgress(id: string): Promise<BookProgress> {
-    return apiFetch(`/api/books/${id}/progress`);
-  },
+export async function getBookProgress(id: string): Promise<BookProgress> {
+  return request<BookProgress>(`/books/${id}/progress`);
+}
 
-  listChaptersGrid(bookId: string): Promise<ChapterGridItem[]> {
-    return apiFetch(`/api/books/${bookId}/chapters`);
-  },
+export async function listChapters(bookId: string): Promise<ChapterGridItem[]> {
+  return request<ChapterGridItem[]>(`/books/${bookId}/chapters`);
+}
 
-  getChapter(bookId: string, num: number): Promise<ChapterDetail> {
-    return apiFetch(`/api/books/${bookId}/chapters/${num}`);
-  },
+export async function getChapterDetail(bookId: string, num: number): Promise<ChapterDetail> {
+  return request<ChapterDetail>(`/books/${bookId}/chapters/${num}`);
+}
 
-  getBookReaderData(bookId: string): Promise<ReaderData> {
-    return apiFetch(`/api/books/${bookId}/reader-data`);
-  },
-
-  saveChapter(
-    bookId: string,
-    num: number,
-    body: { selections: { scene_id: number; variant_id: number | null }[] }
-  ): Promise<ChapterDetail> {
-    return apiJsonFetch(`/api/books/${bookId}/chapters/${num}/save`, 'POST', body);
-  },
-
-  editChapter(bookId: string, num: number): Promise<ChapterDetail> {
-    return apiFetch(`/api/books/${bookId}/chapters/${num}/edit`, { method: 'POST' });
-  },
-
-  publishBook(id: string): Promise<{ ok: boolean }> {
-    return apiFetch(`/api/books/${id}/publish`, { method: 'POST' });
-  },
-
-  variantImgUrl(bookId: string, variantId: number): string {
-    return `${BASE}/api/books/${bookId}/chapters/variants/${variantId}/img`;
-  },
-
-  deleteBook(id: string): Promise<{ deleted: boolean }> {
-    return apiFetch(`/api/books/${id}`, { method: 'DELETE' });
-  },
-};
-
-export type GenerateStreamEvent =
-  | { type: 'variant'; scene_id: number; variant: VariantDetail }
-  | { type: 'scene_done'; scene_id: number }
-  | { type: 'done' }
-  | { type: 'error'; message: string };
-
-/** Stream image generation results as they arrive (SSE via fetch). */
-export async function* generateImagesStream(
+export async function generateVariants(
   bookId: string,
-  num: number,
-  body: { scene_ids: number[]; variant_count: number }
-): AsyncGenerator<GenerateStreamEvent> {
-  const response = await fetch(`${BASE}/api/books/${bookId}/chapters/${num}/generate`, {
+  chapterNum: number,
+  sceneIds: number[],
+  variantCount: number,
+): Promise<{ jobId: string; status: string }> {
+  return request(`/books/${bookId}/chapters/${chapterNum}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ scene_ids: sceneIds, variant_count: variantCount }),
   });
+}
 
-  if (!response.ok) {
-    const b = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(b.error ?? `HTTP ${response.status}`);
-  }
+export async function saveChapter(
+  bookId: string,
+  chapterNum: number,
+  selections: { sceneId: number; variantId: number }[],
+): Promise<{ status: string }> {
+  return request(`/books/${bookId}/chapters/${chapterNum}/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selections }),
+  });
+}
 
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+export async function editChapter(bookId: string, chapterNum: number): Promise<{ status: string }> {
+  return request(`/books/${bookId}/chapters/${chapterNum}/edit`, { method: 'POST' });
+}
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+export async function publishBook(id: string): Promise<{ status: string }> {
+  return request(`/books/${id}/publish`, { method: 'POST' });
+}
 
-      buffer += decoder.decode(value, { stream: true });
-      const events = buffer.split('\n\n');
-      buffer = events.pop() ?? '';
+export async function deleteBook(id: string): Promise<void> {
+  return request(`/books/${id}`, { method: 'DELETE' });
+}
 
-      for (const event of events) {
-        const dataLine = event.split('\n').find((l) => l.startsWith('data: '));
-        if (!dataLine) continue;
-        yield JSON.parse(dataLine.slice(6)) as GenerateStreamEvent;
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
+export async function getReaderData(id: string): Promise<ReaderData> {
+  return request<ReaderData>(`/books/${id}/reader-data`);
 }

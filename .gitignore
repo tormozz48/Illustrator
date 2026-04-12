@@ -1,13 +1,22 @@
 node_modules/
 dist/
-*.tsbuildinfo
 .env
-output/
-.cache/
-*.log
+*.js.map
+*.d.ts
+
+# Docker volumes
+pgdata/
+miniodata/
+redis-data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
 .DS_Store
-tsup.config.bundled_*.mjs
-.claude
-apps/**/.wrangler
-apps/web/vite.config.ts.*
-apps/web/src/**/*.js
+Thumbs.db
+
+# Logs
+*.log

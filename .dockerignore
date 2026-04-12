@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.env
+*.md
+.claude
+pgdata
+miniodata
+redis-data

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "projects": {
+    "api": {
+      "type": "application",
+      "root": ".",
+      "entryFile": "api/main",
+      "sourceRoot": "src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.api.json"
+      }
+    },
+    "worker": {
+      "type": "application",
+      "root": ".",
+      "entryFile": "worker/main",
+      "sourceRoot": "src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.worker.json"
+      }
+    }
+  }
+}

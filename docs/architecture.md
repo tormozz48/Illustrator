@@ -1,333 +1,394 @@
-# Application Architecture — Illustrated Book Generator
+# Illustrator — Architecture Document
 
-> **Decision: OpenRouter-based MVP.** No provider abstraction layer. See [decisions.md](./decisions.md) for all ADRs.
+> Book-to-illustrated-HTML pipeline rebuilt on NestJS, PostgreSQL, Redis/BullMQ, and MinIO.
 
-## System Overview
+## 1. Overview
 
-```mermaid
-graph TB
-    subgraph CLI["CLI Interface (commander)"]
-        CMD["$ bookillust generate<br/>--input book.txt<br/>--style watercolor"]
-    end
+Illustrator is a web application that transforms uploaded `.txt` books into illustrated HTML readers using AI (Google Gemini). Users upload a book, the system analyzes it, splits it into chapters, generates character portraits and scene illustrations, and produces an interactive reader.
 
-    CMD --> ORCH["Orchestrator<br/>(Pipeline Runner)"]
+This document describes the new architecture after migrating away from Cloudflare Workers/D1/R2 to a self-hosted Docker-based stack.
 
-    subgraph OpenRouter["OpenRouter API<br/>(@openrouter/sdk)"]
-        direction LR
-        TEXT["Text Analysis<br/>1M context"]
-        IMAGE["Image Generation<br/>500/day free"]
-        VISION["Vision Validation<br/>consistency check"]
-    end
-
-    ORCH --> OpenRouter
-
-    subgraph Pipeline["Processing Pipeline"]
-        direction TB
-        P1["1. READ<br/>Parse input file"] --> P2["2. ANALYZE<br/>Build character &amp; style bible"]
-        P2 --> P3["3. SPLIT<br/>Divide into chapters"]
-        P3 --> P4["4. ILLUSTRATE<br/>Parallel: scene → prompt → image → validate"]
-        P4 --> P5["5. ASSEMBLE<br/>Chapters + images → HTML bundle"]
-    end
-
-    ORCH --> Pipeline
-    Pipeline --> OUTPUT["output/book.html<br/>(self-contained)"]
-```
-
----
-
-## Pipeline Detail
-
-```mermaid
-flowchart LR
-    subgraph Stage1["Stage 1: Read"]
-        INPUT["book.txt"] --> READER["BookReader<br/>(fs.readFile)"]
-        READER --> RAW["Raw Text"]
-    end
-
-    subgraph Stage2["Stage 2: Analyze"]
-        RAW --> LLM1["OpenRouter: Analyze full text<br/>(structured output → zod)"]
-        LLM1 --> BIBLE["Character Bible<br/>+ Style Guide"]
-    end
-
-    subgraph Stage3["Stage 3: Split"]
-        RAW --> LLM2["OpenRouter: Split chapters<br/>(structured output → zod)"]
-        LLM2 --> CHAPTERS["Chapter[]"]
-    end
-
-    subgraph Stage4["Stage 4: Illustrate (parallel via p-map)"]
-        CHAPTERS --> PAR{{"p-map<br/>concurrency: 3"}}
-        BIBLE --> PROMPT_BUILD["Build Prompt"]
-        PAR --> LLM3["OpenRouter: Find key scene"]
-        LLM3 --> PROMPT_BUILD
-        PROMPT_BUILD --> IMG_GEN["OpenRouter Image:<br/>Generate with anchor ref"]
-        IMG_GEN --> VALIDATE["OpenRouter Vision:<br/>Validate consistency"]
-        VALIDATE -->|Pass| OPTIMIZE["jimp: resize + compress"]
-        VALIDATE -->|Fail, retry ≤ 2| PROMPT_BUILD
-        OPTIMIZE --> ENRICHED["Enriched Chapter<br/>(text + base64 image)"]
-    end
-
-    subgraph Stage5["Stage 5: Assemble"]
-        ENRICHED --> TEMPLATE["Eta Template Engine"]
-        TEMPLATE --> BUNDLE["book.html<br/>with ToC + embedded images"]
-    end
-```
-
----
-
-## OpenRouter Integration (Direct, No Abstraction)
-
-Since the MVP uses OpenRouter exclusively, there is no provider interface. The OpenRouter SDK is used directly in pipeline modules.
-
-```mermaid
-classDiagram
-    class OpenRouterClient {
-        -client: OpenRouter
-        +analyzeBook(text: string): Promise~CharacterBible~
-        +splitChapters(text: string): Promise~Chapter[]~
-        +findKeyScene(chapter: Chapter, bible: CharacterBible): Promise~KeyScene~
-        +generateImage(prompt: string, refs?: Buffer[]): Promise~Buffer~
-        +validateImage(image: Buffer, bible: CharacterBible): Promise~ValidationResult~
-    }
-
-    class ValidationResult {
-        score: number
-        traits: Record~string, number~
-        suggestions?: string[]
-        pass: boolean
-    }
-
-    class Orchestrator {
-        -client: OpenRouterClient
-        -config: AppConfig
-        +run(inputPath: string): Promise~BookResult~
-    }
-
-    class Assembler {
-        +assemble(bible: CharacterBible, chapters: EnrichedChapter[]): string
-    }
-
-    Orchestrator --> OpenRouterClient
-    Orchestrator --> Assembler
-    OpenRouterClient --> ValidationResult
-```
-
----
-
-## Data Models
-
-```mermaid
-classDiagram
-    class CharacterBible {
-        characters: CharacterSheet[]
-        styleGuide: StyleGuide
-        settings: Setting[]
-    }
-
-    class CharacterSheet {
-        name: string
-        visualDescription: string
-        role: string
-        distinctiveFeatures: string[]
-        anchorImage?: Buffer
-    }
-
-    class StyleGuide {
-        artStyle: string
-        colorPalette: string
-        mood: string
-        negativePrompt: string
-        stylePrefix: string
-    }
-
-    class Setting {
-        name: string
-        visualDescription: string
-    }
-
-    class Chapter {
-        number: number
-        title: string
-        content: string
-        keyScene: KeyScene
-        illustration?: Illustration
-    }
-
-    class KeyScene {
-        description: string
-        characters: string[]
-        setting: string
-        mood: string
-        insertAfterParagraph: number
-    }
-
-    class Illustration {
-        imageBase64: string
-        prompt: string
-        width: number
-        height: number
-        validationScore: number
-    }
-
-    class BookResult {
-        title: string
-        author?: string
-        bible: CharacterBible
-        chapters: Chapter[]
-        html: string
-    }
-
-    CharacterBible --> CharacterSheet
-    CharacterBible --> StyleGuide
-    CharacterBible --> Setting
-    Chapter --> KeyScene
-    Chapter --> Illustration
-    BookResult --> CharacterBible
-    BookResult --> Chapter
-```
-
----
-
-## Tech Stack
-
-| Component | Technology | Package | Why |
-|---|---|---|---|
-| Language | TypeScript + Node.js | `typescript` | Requirement. Strong async/parallel. |
-| AI (all operations) | OpenRouter (Gemini 2.5 Flash) | `@openrouter/sdk` | Unified API gateway. Text + image + vision via one SDK. |
-| CLI Framework | commander | `commander` | Industry standard. 25M+ downloads/week. |
-| CLI UX | ora + chalk | `ora`, `chalk` | Spinners & colored progress output. |
-| Schema Validation | zod | `zod` | Structured output integration. |
-| HTML Templating | Eta | `eta` | TypeScript-native, fastest engine. |
-| Image Processing | jimp | `jimp` | Pure JS, zero native deps. |
-| Concurrency | p-map | `p-map` | Map over chapters with concurrency limit. |
-| Env Config | dotenv | `dotenv` | Load `.env` file. |
-| Build | tsup | `tsup` | esbuild-powered, sub-100ms builds. |
-| Dev Runner | tsx | `tsx` | Run `.ts` directly during development. |
-| Linter / Formatter | Biome | `@biomejs/biome` | Already configured. 10-25x faster than ESLint. |
-| Package Manager | npm | (built-in) | Ships with Node.js. Zero setup. |
-
----
-
-## Project Structure
+## 2. High-Level Architecture
 
 ```
-bookillust/
-├── src/
-│   ├── index.ts                  # CLI entry point (commander)
-│   ├── openRouter.ts             # OpenRouterClient — all AI operations
-│   ├── pipeline/
-│   │   ├── orchestrator.ts       # Main pipeline runner
-│   │   ├── reader.ts             # Read + normalize .txt files
-│   │   ├── analyzer.ts           # Bible generation (uses openRouter.ts)
-│   │   ├── splitter.ts           # Chapter splitting (uses openRouter.ts)
-│   │   ├── illustrator.ts        # Scene → prompt → image → validate
-│   │   └── assembler.ts          # Eta template → HTML bundle
-│   ├── templates/
-│   │   └── book.eta              # HTML book template
-│   ├── schemas.ts                # Zod schemas for all data models
-│   └── config.ts                 # Configuration & env vars
-├── .env.example                  # Template for OPENROUTER_API_KEY
-├── biome.json                    # Biome linter/formatter config
-├── package.json
+┌─────────────────────────────────────────────────────────┐
+│                    Docker Compose                        │
+│                                                          │
+│  ┌──────────┐   ┌──────────┐   ┌───────┐   ┌─────────┐ │
+│  │  NestJS   │   │  NestJS   │   │       │   │         │ │
+│  │   API     │◄─►│  Worker   │◄─►│ Redis │   │ MinIO   │ │
+│  │ :3000     │   │          │   │ :6379 │   │ :9000   │ │
+│  └─────┬─────┘   └─────┬────┘   └───────┘   └─────────┘ │
+│        │               │                                  │
+│        │               │         ┌──────────┐            │
+│        └───────────────┴────────►│PostgreSQL│            │
+│                                  │ :5432    │            │
+│                                  └──────────┘            │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Components
+
+| Component      | Technology                  | Purpose                                       |
+|----------------|-----------------------------|-----------------------------------------------|
+| **API**        | NestJS (Express)            | REST endpoints, WebSocket gateway, serves UI  |
+| **Worker**     | NestJS (standalone)         | Processes BullMQ jobs (workflow pipeline)      |
+| **Database**   | PostgreSQL 16               | Persistent data (books, chapters, scenes, etc) |
+| **Queue**      | Redis 7 + BullMQ            | Job queue and pub/sub for API↔Worker comms     |
+| **Storage**    | MinIO (S3-compatible)       | File/image storage (books, illustrations)      |
+| **Frontend**   | Vite + React 18 + MUI       | SPA served as static files by NestJS API       |
+
+## 3. Project Structure
+
+```
+illustrator/
+├── src/                          # NestJS backend (single project, two entry points)
+│   ├── api/
+│   │   ├── main.ts               # API bootstrap (HTTP + WebSocket)
+│   │   ├── api.module.ts
+│   │   ├── books/                # Books REST controller + service
+│   │   ├── chapters/             # Chapters REST controller + service
+│   │   └── gateway/              # Socket.IO WebSocket gateway
+│   │
+│   ├── worker/
+│   │   ├── main.ts               # Worker bootstrap (standalone NestJS app)
+│   │   ├── worker.module.ts
+│   │   └── processors/           # BullMQ job processors
+│   │       ├── analyze.processor.ts
+│   │       ├── split.processor.ts
+│   │       ├── anchor.processor.ts
+│   │       ├── prepare-scenes.processor.ts
+│   │       └── generate-images.processor.ts
+│   │
+│   ├── common/                   # Shared modules (used by both API and Worker)
+│   │   ├── database/
+│   │   │   ├── database.module.ts
+│   │   │   ├── models/           # sequelize-typescript models
+│   │   │   │   ├── book.model.ts
+│   │   │   │   ├── bible.model.ts
+│   │   │   │   ├── chapter.model.ts
+│   │   │   │   ├── scene.model.ts
+│   │   │   │   ├── scene-variant.model.ts
+│   │   │   │   ├── anchor.model.ts
+│   │   │   │   └── job.model.ts
+│   │   │   └── migrations/       # Sequelize CLI migrations
+│   │   │
+│   │   ├── queue/
+│   │   │   └── queue.module.ts   # BullMQ module registration
+│   │   │
+│   │   ├── storage/
+│   │   │   ├── storage.module.ts
+│   │   │   ├── storage.service.ts       # Abstract storage interface
+│   │   │   └── minio-storage.service.ts # MinIO implementation
+│   │   │
+│   │   ├── ai/
+│   │   │   ├── ai.module.ts
+│   │   │   ├── ai-provider.interface.ts  # Abstract AI provider
+│   │   │   ├── ai.service.ts            # Facade/factory
+│   │   │   └── gemini/
+│   │   │       ├── gemini.provider.ts    # Gemini implementation
+│   │   │       └── gemini.config.ts
+│   │   │
+│   │   ├── config/
+│   │   │   └── config.module.ts  # NestJS ConfigModule setup
+│   │   │
+│   │   ├── dto/                  # Shared DTOs
+│   │   ├── constants/            # Queue names, job types, statuses
+│   │   └── utils/                # Shared utilities (jsonRepair, etc.)
+│   │
+│   └── prompts/                  # LLM prompt templates (shared)
+│
+├── apps/
+│   └── web/                      # Frontend (Vite + React + MUI)
+│       ├── src/
+│       │   ├── pages/
+│       │   ├── components/
+│       │   ├── api/              # API client + Socket.IO client
+│       │   ├── theme/            # MUI theme configuration
+│       │   └── main.tsx
+│       ├── package.json
+│       └── vite.config.ts
+│
+├── docker-compose.yml
+├── Dockerfile                    # Multi-stage: builds API, Worker, and Web
+├── .env.example
+├── .sequelizerc                  # Sequelize CLI config paths
+├── nest-cli.json
 ├── tsconfig.json
-└── tsup.config.ts
+├── tsconfig.api.json
+├── tsconfig.worker.json
+├── package.json                  # Root (npm workspaces: ["apps/*"])
+└── docs/
+    ├── architecture.md           # This file
+    └── migration-plan.md
 ```
 
-Key differences from the original multi-provider design:
+## 4. Database Schema (PostgreSQL)
 
-- **No `providers/` directory** — OpenRouter is used directly via `openRouter.ts`
-- **No interfaces** — no `TextAIProvider`, no `ImageProvider`. Direct SDK calls.
-- **`schemas.ts`** — centralized Zod schemas (was `types.ts`)
-- **`book.eta`** — Eta template (was `book.html.ejs`)
-- **Simpler, flatter structure** — fewer files, fewer abstractions
+Migrated from D1/SQLite, adapted for PostgreSQL conventions.
 
----
+### Tables
 
-## Sequence: Main Pipeline Execution
+**books**
+| Column       | Type         | Notes                              |
+|--------------|--------------|------------------------------------|
+| id           | VARCHAR(10)  | PK, nanoid                         |
+| title        | VARCHAR(500) | Extracted or user-provided          |
+| author       | VARCHAR(500) | Extracted or user-provided          |
+| status       | ENUM         | See Book Statuses below             |
+| error_msg    | TEXT         | Error details if status = 'error'   |
+| storage_key  | VARCHAR(500) | MinIO object key for source .txt    |
+| created_at   | TIMESTAMPTZ  | Auto                                |
+| updated_at   | TIMESTAMPTZ  | Auto                                |
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant CLI
-    participant Orch as Orchestrator
-    participant Client as OpenRouterClient
-    participant Assembler
+**bibles** (character/world bible, 1:1 with book)
+| Column     | Type        | Notes                     |
+|------------|-------------|---------------------------|
+| id         | SERIAL      | PK                        |
+| book_id    | VARCHAR(10) | FK → books.id, UNIQUE     |
+| data       | JSONB       | Full bible JSON            |
+| created_at | TIMESTAMPTZ |                           |
 
-    User->>CLI: bookillust generate --input book.txt
-    CLI->>Orch: run(config)
+**chapters**
+| Column         | Type         | Notes                       |
+|----------------|--------------|-----------------------------|
+| id             | SERIAL       | PK                          |
+| book_id        | VARCHAR(10)  | FK → books.id               |
+| number         | INTEGER      |                             |
+| title          | VARCHAR(500) |                             |
+| content        | TEXT         | Full chapter text            |
+| status         | ENUM         | draft / editing / illustrated|
+| created_at     | TIMESTAMPTZ  |                             |
+| updated_at     | TIMESTAMPTZ  |                             |
 
-    Orch->>Client: analyzeBook(rawText) → CharacterBible
-    Client-->>Orch: bible (characters, style, settings)
+**scenes**
+| Column             | Type         | Notes                    |
+|--------------------|--------------|--------------------------|
+| id                 | SERIAL       | PK                       |
+| chapter_id         | INTEGER      | FK → chapters.id         |
+| paragraph_index    | INTEGER      | Position in chapter       |
+| description        | TEXT         | Scene narrative            |
+| visual_description | TEXT         | Visual prompt for image gen|
+| entities           | JSONB        | Characters in scene        |
+| setting            | TEXT         |                           |
+| mood               | VARCHAR(100) |                           |
 
-    Note over Orch: Generate anchor images for main characters
-    loop Each main character
-        Orch->>Client: generateImage(characterPrompt)
-        Client-->>Orch: anchorImage
-        Orch->>Client: validateImage(anchorImage, bible)
-        Client-->>Orch: validation result
-    end
+**scene_variants**
+| Column       | Type         | Notes                          |
+|--------------|--------------|--------------------------------|
+| id           | SERIAL       | PK                             |
+| scene_id     | INTEGER      | FK → scenes.id                 |
+| storage_key  | VARCHAR(500) | MinIO object key                |
+| score        | FLOAT        | AI validation score (0-1)       |
+| selected     | BOOLEAN      | User's pick, default false      |
+| width        | INTEGER      |                                |
+| height       | INTEGER      |                                |
+| created_at   | TIMESTAMPTZ  |                                |
 
-    Orch->>Client: splitChapters(rawText)
-    Client-->>Orch: chapters[]
+**anchors** (character reference portraits)
+| Column       | Type         | Notes                          |
+|--------------|--------------|--------------------------------|
+| id           | SERIAL       | PK                             |
+| book_id      | VARCHAR(10)  | FK → books.id                  |
+| name         | VARCHAR(200) | Character/entity name           |
+| storage_key  | VARCHAR(500) | MinIO object key                |
+| created_at   | TIMESTAMPTZ  |                                |
 
-    Note over Orch: Process chapters in parallel (p-map, concurrency: 3)
-    par Chapter 1
-        Orch->>Client: findKeyScene(ch1, bible)
-        Client-->>Orch: scene1
-        Orch->>Client: generateImage(prompt1, anchors)
-        Client-->>Orch: image1
-        Orch->>Client: validateImage(image1, bible)
-        Client-->>Orch: score ≥ 0.7 → accept
-    and Chapter 2
-        Orch->>Client: findKeyScene(ch2, bible)
-        Client-->>Orch: scene2
-        Orch->>Client: generateImage(prompt2, anchors)
-        Client-->>Orch: image2
-        Orch->>Client: validateImage(image2, bible)
-        Client-->>Orch: score < 0.7 → retry
-    and Chapter N...
-        Note over Orch,Client: same flow for each chapter
-    end
+**jobs** (workflow tracking)
+| Column       | Type         | Notes                          |
+|--------------|--------------|--------------------------------|
+| id           | SERIAL       | PK                             |
+| book_id      | VARCHAR(10)  | FK → books.id                  |
+| bullmq_id    | VARCHAR(200) | BullMQ job/flow ID              |
+| status       | VARCHAR(50)  |                                |
+| error        | TEXT         |                                |
+| created_at   | TIMESTAMPTZ  |                                |
+| updated_at   | TIMESTAMPTZ  |                                |
 
-    Orch->>Assembler: assemble(bible, enrichedChapters)
-    Note over Assembler: Eta renders book.eta template
-    Assembler-->>Orch: book.html (with base64 images)
-    Orch-->>CLI: done → output/book.html
-    CLI-->>User: Book generated: output/book.html
+### Book Statuses
+`pending` → `analyzing` → `splitting` → `anchoring` → `preparing_scenes` → `ready` → `publishing` → `done` | `error`
+
+## 5. BullMQ Workflow Design
+
+The book processing pipeline uses **BullMQ FlowProducer** to model the pipeline as a dependency graph (DAG). Each step is a named job type processed by a dedicated processor in the Worker.
+
+### Flow Structure
+
+```
+                    ┌──────────────┐
+                    │  finalize    │  (parent — waits for all children)
+                    └──────┬───────┘
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+     ┌────────▼──┐  ┌──────▼────┐  ┌───▼────────┐
+     │prepare-   │  │prepare-   │  │prepare-    │  (one per chapter batch)
+     │scenes-0   │  │scenes-1   │  │scenes-N    │
+     └────────┬──┘  └──────┬────┘  └───┬────────┘
+              │            │           │
+              └────────────┼───────────┘
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+     ┌────────▼──┐  ┌──────▼────┐  ┌───▼────────┐
+     │anchor-    │  │anchor-    │  │anchor-     │  (one per primary entity)
+     │alice      │  │bob        │  │charlie     │
+     └────────┬──┘  └──────┬────┘  └───┬────────┘
+              │            │           │
+              └────────────┼───────────┘
+                           │
+                    ┌──────▼───────┐
+                    │    split     │
+                    └──────┬───────┘
+                           │
+                    ┌──────▼───────┐
+                    │   analyze    │  (leaf — runs first)
+                    └──────────────┘
 ```
 
----
+### Queue Names
 
-## CLI Interface Design
+| Queue              | Purpose                                    |
+|--------------------|--------------------------------------------|
+| `book-pipeline`    | Main pipeline flow (analyze → finalize)    |
+| `image-generation` | On-demand image variant generation          |
 
+### Job Types (all on `book-pipeline` queue)
+
+| Job Name          | Input                    | Output / Side Effect                  |
+|-------------------|--------------------------|---------------------------------------|
+| `analyze`         | { bookId }               | Creates bible in DB                   |
+| `split`           | { bookId }               | Creates chapters in DB                |
+| `anchor`          | { bookId, entityName }   | Generates portrait, stores in MinIO   |
+| `prepare-scenes`  | { bookId, chapterIds[] } | Creates scenes in DB                  |
+| `finalize`        | { bookId }               | Sets book status → ready              |
+
+### Image Generation (separate queue)
+
+| Job Name          | Input                                  | Output                          |
+|-------------------|----------------------------------------|---------------------------------|
+| `generate-images` | { bookId, chapterNum, sceneIds[], variantCount } | Variants in DB + MinIO |
+
+Progress events are emitted via `job.updateProgress()` and relayed to the client through Socket.IO.
+
+## 6. API Endpoints
+
+All existing endpoints are preserved with the same contracts.
+
+### Books
+| Method | Path                              | Description                    |
+|--------|-----------------------------------|--------------------------------|
+| POST   | /api/books                        | Upload .txt file               |
+| GET    | /api/books                        | List all books                 |
+| GET    | /api/books/:id                    | Get book metadata              |
+| GET    | /api/books/:id/progress           | Chapter status counts          |
+| GET    | /api/books/:id/reader-data        | Assembled chapters + image URLs|
+| POST   | /api/books/:id/publish            | Mark book as done              |
+| DELETE | /api/books/:id                    | Delete book + all assets       |
+
+### Chapters
+| Method | Path                                           | Description                     |
+|--------|-------------------------------------------------|---------------------------------|
+| GET    | /api/books/:id/chapters                         | List chapters (grid format)     |
+| GET    | /api/books/:id/chapters/:num                    | Full chapter detail             |
+| POST   | /api/books/:id/chapters/:num/generate           | Enqueue image generation job    |
+| POST   | /api/books/:id/chapters/:num/save               | Save variant selections         |
+| POST   | /api/books/:id/chapters/:num/edit               | Mark chapter as editable        |
+| GET    | /api/books/:id/chapters/variants/:variantId/img | Stream image from MinIO         |
+
+### WebSocket (Socket.IO)
+
+**Namespace:** `/books`
+
+| Event (server → client)      | Payload                                     |
+|------------------------------|---------------------------------------------|
+| `book:status`                | { bookId, status }                          |
+| `chapter:variant-generated`  | { bookId, chapterNum, sceneId, variant }    |
+| `chapter:generation-done`    | { bookId, chapterNum }                      |
+| `chapter:generation-error`   | { bookId, chapterNum, error }               |
+
+**Client joins room:** `book:{bookId}` to receive updates for a specific book.
+
+## 7. AI Provider Abstraction
+
+```typescript
+interface AIProvider {
+  analyzeBook(text: string): Promise<BookBible>;
+  splitChapters(text: string): Promise<ChapterBoundary[]>;
+  findKeyScenes(chapter: string, bible: BookBible): Promise<Scene[]>;
+  generateImage(prompt: string, referenceImages?: Buffer[]): Promise<Buffer>;
+  validateImage(image: Buffer, bible: BookBible): Promise<number>;
+}
 ```
-USAGE
-  $ bookillust generate [OPTIONS]
 
-OPTIONS
-  -i, --input <path>        Path to input text file (required)
-  -o, --output <path>       Output directory (default: ./output)
-  -s, --style <style>       Art style: watercolor | comic | realistic | anime (default: watercolor)
-  --concurrency <n>         Parallel chapter processing limit (default: 3)
-  --no-cache                Disable caching of intermediate results
-  --verbose                 Show detailed progress logs
+The `AiService` is a NestJS injectable that delegates to the configured provider (Gemini by default). New providers can be added by implementing the interface and registering them in `AiModule`.
 
-EXAMPLES
-  $ bookillust generate -i story.txt
-  $ bookillust generate -i novel.txt -s comic
-  $ bookillust generate -i book.txt -o ./my-book --concurrency 5
+## 8. Storage Abstraction
+
+```typescript
+interface StorageService {
+  upload(key: string, data: Buffer, contentType: string): Promise<void>;
+  download(key: string): Promise<Buffer>;
+  getSignedUrl(key: string, expiresIn?: number): Promise<string>;
+  delete(key: string): Promise<void>;
+  deletePrefix(prefix: string): Promise<void>;
+}
 ```
 
-Note: `--text-provider` and `--image-provider` flags are removed from MVP. They will be added in Phase 5 when alternative providers are implemented.
+MinIO implementation uses the `@aws-sdk/client-s3` package (S3-compatible). The same interface can later be swapped for AWS S3, GCS, or local filesystem.
 
----
+## 9. Docker Compose Services
 
-## Configuration
+| Service      | Image / Build      | Ports          | Depends On        |
+|--------------|--------------------|----------------|-------------------|
+| `api`        | Dockerfile (api)   | 3000:3000      | postgres, redis, minio |
+| `worker`     | Dockerfile (worker)| —              | postgres, redis, minio |
+| `postgres`   | postgres:16-alpine | 5432:5432      | —                 |
+| `redis`      | redis:7-alpine     | 6379:6379      | —                 |
+| `minio`      | minio/minio        | 9000:9000, 9001:9001 | —            |
 
+### Volumes
+- `pgdata` — PostgreSQL data persistence
+- `miniodata` — MinIO data persistence
+- `redis-data` — Redis data persistence
+
+## 10. Environment Variables
+
+| Variable             | Description                      | Default                    |
+|----------------------|----------------------------------|----------------------------|
+| `NODE_ENV`           | Environment                      | development                |
+| `PORT`               | API server port                  | 3000                       |
+| `DATABASE_URL`       | PostgreSQL connection string     | postgres://illustrator:illustrator@postgres:5432/illustrator |
+| `REDIS_HOST`         | Redis hostname                   | redis                      |
+| `REDIS_PORT`         | Redis port                       | 6379                       |
+| `MINIO_ENDPOINT`     | MinIO endpoint                   | minio                      |
+| `MINIO_PORT`         | MinIO API port                   | 9000                       |
+| `MINIO_ACCESS_KEY`   | MinIO access key                 | minioadmin                 |
+| `MINIO_SECRET_KEY`   | MinIO secret key                 | minioadmin                 |
+| `MINIO_BUCKET`       | Default bucket name              | illustrator                |
+| `GEMINI_API_KEY`     | Google Gemini API key            | —                          |
+| `AI_PROVIDER`        | AI provider to use               | gemini                     |
+
+## 11. Development Workflow
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Run migrations
+npm run db:migrate
+
+# Watch mode (API)
+npm run start:api:dev
+
+# Watch mode (Worker)
+npm run start:worker:dev
+
+# Frontend dev server (with proxy to API)
+cd apps/web && npm run dev
+
+# Build frontend and copy to API static folder
+npm run build:web
 ```
-# .env file — only one API key needed for MVP
-OPENROUTER_API_KEY=          # OpenRouter API key — get one at openrouter.ai/settings/keys
 
-# Optional defaults
-DEFAULT_STYLE=watercolor     # Art style preset
-DEFAULT_CONCURRENCY=3        # Parallel chapter limit
-```
+In development, the Vite dev server runs separately with a proxy to the NestJS API on port 3000. For production/Docker, the built frontend is served by NestJS via `@nestjs/serve-static`.

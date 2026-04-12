@@ -1,90 +1,98 @@
-import { useEffect, useState } from 'react';
-import { Library, PlusCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { type Book, api } from '@/api/client.js';
-import { BookCard } from '@/components/book/BookCard.js';
-import { AppShell } from '@/components/layout/AppShell.js';
-import { Button } from '@/components/ui/button.js';
+import { useState, useEffect } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
+import {
+  Box, Typography, Card, CardContent, CardActions, Button, Chip, Grid,
+  IconButton, CircularProgress, Alert,
+} from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { listBooks, deleteBook, Book } from '../api/client';
+
+const statusColors: Record<string, 'default' | 'primary' | 'warning' | 'success' | 'error'> = {
+  pending: 'default',
+  analyzing: 'primary',
+  splitting: 'primary',
+  anchoring: 'primary',
+  preparing_scenes: 'primary',
+  ready: 'warning',
+  publishing: 'warning',
+  done: 'success',
+  error: 'error',
+};
 
 export default function BookList() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
-  const load = async () => {
+  const fetchBooks = async () => {
     try {
-      const data = await api.listBooks();
+      const data = await listBooks();
       setBooks(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load books');
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    const interval = setInterval(() => {
-      const hasPending = books.some((b) => b.status !== 'done' && b.status !== 'error');
-      if (hasPending) load();
-    }, 5000);
+    fetchBooks();
+    const interval = setInterval(fetchBooks, 5000);
     return () => clearInterval(interval);
-  }, [books.length]);
+  }, []);
 
   const handleDelete = async (id: string) => {
-    await api.deleteBook(id);
-    setBooks((prev) => prev.filter((b) => b.id !== id));
+    if (!confirm('Delete this book?')) return;
+    await deleteBook(id);
+    setBooks(books.filter(b => b.id !== id));
   };
 
+  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
+
   return (
-    <AppShell>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Library className="size-5 text-muted-foreground" />
-          <h1 className="text-2xl font-bold tracking-tight">Your Library</h1>
-        </div>
-        <Button asChild variant="default" size="sm">
-          <Link to="/">
-            <PlusCircle className="size-4" />
-            Upload book
-          </Link>
-        </Button>
-      </div>
+    <Box>
+      <Typography variant="h4" gutterBottom>Books</Typography>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {error && (
-        <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
-          {error}
-        </p>
-      )}
-
-      {loading && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-36 rounded-xl border bg-muted/30 animate-pulse" />
+      {books.length === 0 ? (
+        <Typography color="text.secondary">No books yet. Upload one to get started!</Typography>
+      ) : (
+        <Grid container spacing={3}>
+          {books.map(book => (
+            <Grid item xs={12} sm={6} md={4} key={book.id}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" noWrap>
+                    {book.title || 'Untitled'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    {book.author || 'Unknown author'}
+                  </Typography>
+                  <Chip
+                    label={book.status}
+                    color={statusColors[book.status] || 'default'}
+                    size="small"
+                  />
+                </CardContent>
+                <CardActions>
+                  <Button component={RouterLink} to={`/books/${book.id}`} size="small">
+                    View
+                  </Button>
+                  {book.status === 'done' && (
+                    <Button component={RouterLink} to={`/books/${book.id}/read`} size="small" color="secondary">
+                      Read
+                    </Button>
+                  )}
+                  <Box sx={{ flexGrow: 1 }} />
+                  <IconButton size="small" onClick={() => handleDelete(book.id)} color="error">
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </CardActions>
+              </Card>
+            </Grid>
           ))}
-        </div>
+        </Grid>
       )}
-
-      {!loading && books.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed py-16 text-center">
-          <Library className="size-10 text-muted-foreground/50" />
-          <div>
-            <p className="font-medium text-muted-foreground">No books yet</p>
-            <p className="text-sm text-muted-foreground">Upload a .txt file to get started</p>
-          </div>
-          <Button asChild variant="outline">
-            <Link to="/">Upload your first book</Link>
-          </Button>
-        </div>
-      )}
-
-      {!loading && books.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {books.map((book) => (
-            <BookCard key={book.id} book={book} onDelete={handleDelete} />
-          ))}
-        </div>
-      )}
-    </AppShell>
+    </Box>
   );
 }

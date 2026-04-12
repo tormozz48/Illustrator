@@ -1,27 +1,17 @@
-import './index.css';
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import BookDetail from './pages/BookDetail.js';
-import BookList from './pages/BookList.js';
-import BookReader from './pages/BookReader.js';
-import ChapterPage from './pages/ChapterPage.js';
-import Home from './pages/Home.js';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import { theme } from './theme';
+import App from './App';
 
-const root = document.getElementById('root');
-if (!root) throw new Error('#root element not found');
-
-createRoot(root).render(
-  <StrictMode>
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/books" element={<BookList />} />
-        <Route path="/books/:id" element={<BookDetail />} />
-        <Route path="/books/:id/chapters/:num" element={<ChapterPage />} />
-        <Route path="/books/:id/read" element={<BookReader />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <App />
+      </ThemeProvider>
     </BrowserRouter>
-  </StrictMode>
+  </React.StrictMode>,
 );
