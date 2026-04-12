@@ -127,7 +127,10 @@ export default function ChapterPage() {
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
   if (!chapter) return <Alert severity="error">Chapter not found</Alert>;
 
-  const allScenesHaveSelection = chapter.scenes.every(s => selections[s.id]);
+  // Enable save when all scenes that have generated variants have a selection made
+  const scenesWithVariants = chapter.scenes.filter(s => s.variants.length > 0);
+  const allScenesWithVariantsSelected = scenesWithVariants.length > 0 &&
+    scenesWithVariants.every(s => selections[s.id]);
 
   return (
     <Box>
@@ -168,7 +171,7 @@ export default function ChapterPage() {
                 variant="contained"
                 color="success"
                 onClick={handleSave}
-                disabled={saving || !allScenesHaveSelection}
+                disabled={saving || !allScenesWithVariantsSelected}
               >
                 {saving ? 'Saving...' : 'Save Selections'}
               </Button>

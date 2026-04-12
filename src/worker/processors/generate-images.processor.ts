@@ -1,17 +1,23 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Inject, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Job as BullJob } from 'bullmq';
-import { Jimp } from 'jimp';
-import { Bible } from '../../common/database/models/bible.model';
-import { Chapter } from '../../common/database/models/chapter.model';
-import { Scene } from '../../common/database/models/scene.model';
-import { SceneVariant } from '../../common/database/models/scene-variant.model';
-import { Anchor } from '../../common/database/models/anchor.model';
-import { STORAGE_SERVICE, IStorageService } from '../../common/storage/storage.interface';
-import { AI_PROVIDER, IAIProvider } from '../../common/ai/ai-provider.interface';
-import { QUEUE_IMAGE_GENERATION } from '../../common/constants';
-import { buildImagePrompt } from '../../prompts';
+import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Inject, Logger } from "@nestjs/common";
+import { InjectModel } from "@nestjs/sequelize";
+import { Job as BullJob } from "bullmq";
+import { Jimp } from "jimp";
+import { Bible } from "../../common/database/models/bible.model";
+import { Chapter } from "../../common/database/models/chapter.model";
+import { Scene } from "../../common/database/models/scene.model";
+import { SceneVariant } from "../../common/database/models/scene-variant.model";
+import { Anchor } from "../../common/database/models/anchor.model";
+import {
+  STORAGE_SERVICE,
+  IStorageService,
+} from "../../common/storage/storage.interface";
+import {
+  AI_PROVIDER,
+  IAIProvider,
+} from "../../common/ai/ai-provider.interface";
+import { QUEUE_IMAGE_GENERATION } from "../../common/constants";
+import { buildImagePrompt } from "../../prompts";
 
 @Processor(QUEUE_IMAGE_GENERATION)
 export class GenerateImagesProcessor extends WorkerHost {
@@ -24,14 +30,23 @@ export class GenerateImagesProcessor extends WorkerHost {
     @InjectModel(SceneVariant) private variantModel: typeof SceneVariant,
     @InjectModel(Anchor) private anchorModel: typeof Anchor,
     @Inject(STORAGE_SERVICE) private storage: IStorageService,
-    @Inject(AI_PROVIDER) private ai: IAIProvider,
+    @Inject(AI_PROVIDER) private ai: IAIProvider
   ) {
     super();
   }
 
-  async process(job: BullJob<{ bookId: string; chapterNum: number; sceneIds: number[]; variantCount: number }>) {
+  async process(
+    job: BullJob<{
+      bookId: string;
+      chapterNum: number;
+      sceneIds: number[];
+      variantCount: number;
+    }>
+  ) {
     const { bookId, chapterNum, sceneIds, variantCount } = job.data;
-    this.logger.log(`Generating images for book ${bookId}, chapter ${chapterNum}, ${sceneIds.length} scenes x ${variantCount} variants`);
+    this.logger.log(
+      `Generating images for book ${bookId}, chapter ${chapterNum}, ${sceneIds.length} scenes x ${variantCount} variants`
+    );
 
     const bible = await this.bibleModel.findOne({ where: { bookId } });
     if (!bible) throw new Error(`Bible not found for book ${bookId}`);
@@ -61,11 +76,11 @@ export class GenerateImagesProcessor extends WorkerHost {
           const prompt = buildImagePrompt(
             {
               visual_description: scene.visualDescription,
-              setting: scene.setting || '',
-              mood: scene.mood || '',
+              setting: scene.setting || "",
+              mood: scene.mood || "",
               entities: scene.entities || [],
             },
-            bible.data,
+            bible.data
           );
 
           // Generate image
@@ -78,7 +93,7 @@ export class GenerateImagesProcessor extends WorkerHost {
           if (width > 800) {
             image.resize({ w: 800 });
           }
-          const webpBuffer = await image.getBuffer('image/png');
+          const webpBuffer = await image.getBuffer("image/png");
 
           // Validate
           let score = 0.5;
@@ -89,8 +104,8 @@ export class GenerateImagesProcessor extends WorkerHost {
           }
 
           // Store
-          const storageKey = `books/${bookId}/scenes/${scene.id}/variants/${Date.now()}_${v}.webp`;
-          await this.storage.upload(storageKey, webpBuffer, 'image/webp');
+          const storageKey = `books/${bookId}/scenes/${scene.id}/variants/${Date.now()}_${v}.png`;
+          await this.storage.upload(storageKey, webpBuffer, "image/png");
 
           // Save variant to DB
           const variant = await this.variantModel.create({
@@ -105,7 +120,7 @@ export class GenerateImagesProcessor extends WorkerHost {
           await job.updateProgress({
             completed,
             total: totalWork,
-            type: 'variant',
+            type: "variant",
             sceneId: scene.id,
             variant: {
               id: variant.id,
@@ -116,15 +131,30 @@ export class GenerateImagesProcessor extends WorkerHost {
             },
           });
 
-          this.logger.log(`Variant ${v + 1}/${variantCount} for scene ${scene.id} generated (score: ${score.toFixed(2)})`);
+          this.logger.log(
+            `✅ [DEBUG] Variant ${v + 1}/${variantCount} for scene ${scene.id} generated (score: ${score.toFixed(2)}) - Progress event sent with variant.id=${variant.id}`
+          );
         } catch (err: any) {
-          this.logger.error(`Failed to generate variant ${v + 1} for scene ${scene.id}: ${err.message}`);
+          this.logger.error(
+            `Failed to generate variant ${v + 1} for scene ${scene.id}: ${err.message}`
+          );
           completed++;
-          await job.updateProgress({ completed, total: totalWork, type: 'error', sceneId: scene.id, error: err.message });
+          await job.updateProgress({
+            completed,
+            total: totalWork,
+            type: "error",
+            sceneId: scene.id,
+            error: err.message,
+          });
         }
       }
     }
 
-    return { bookId, chapterNum, scenesProcessed: scenes.length, variantsGenerated: completed };
+    return {
+      bookId,
+      chapterNum,
+      scenesProcessed: scenes.length,
+      variantsGenerated: completed,
+    };
   }
 }

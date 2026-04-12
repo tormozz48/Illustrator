@@ -12,6 +12,7 @@ import { Scene } from '../common/database/models/scene.model';
 import { SceneVariant } from '../common/database/models/scene-variant.model';
 import { Anchor } from '../common/database/models/anchor.model';
 import { Job } from '../common/database/models/job.model';
+import { PipelineRouterProcessor } from './processors/pipeline-router.processor';
 import { AnalyzeProcessor } from './processors/analyze.processor';
 import { SplitProcessor } from './processors/split.processor';
 import { AnchorProcessor } from './processors/anchor.processor';
@@ -30,11 +31,15 @@ import { PipelineService } from './pipeline.service';
     SequelizeModule.forFeature([Book, Bible, Chapter, Scene, SceneVariant, Anchor, Job]),
   ],
   providers: [
+    // Single router processor for the book-pipeline queue (dispatches by job.name)
+    PipelineRouterProcessor,
+    // Handler services (no longer @Processor — just @Injectable)
     AnalyzeProcessor,
     SplitProcessor,
     AnchorProcessor,
     PrepareScenesProcessor,
     FinalizeProcessor,
+    // Image generation runs on its own queue
     GenerateImagesProcessor,
     PipelineService,
   ],

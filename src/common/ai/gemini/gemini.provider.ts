@@ -13,12 +13,12 @@ import {
 export class GeminiProvider implements IAIProvider {
   private readonly logger = new Logger(GeminiProvider.name);
   private client: GoogleGenAI;
-  private textModel = 'gemini-2.5-flash';
-  private imageModel = 'gemini-2.5-flash-preview-04-17';
+  private textModel = "gemini-2.5-flash";
+  private imageModel = "gemini-2.5-flash-image";
 
   constructor(private config: ConfigService) {
-    const apiKey = config.get<string>('GEMINI_API_KEY');
-    if (!apiKey) throw new Error('GEMINI_API_KEY is required');
+    const apiKey = config.get<string>("GEMINI_API_KEY");
+    if (!apiKey) throw new Error("GEMINI_API_KEY is required");
     this.client = new GoogleGenAI({ apiKey });
   }
 
@@ -28,11 +28,11 @@ export class GeminiProvider implements IAIProvider {
       model: this.textModel,
       contents: prompt,
       config: {
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.3,
       },
     });
-    return JSON.parse(response.text ?? '{}');
+    return JSON.parse(response.text ?? "{}");
   }
 
   async splitChapters(text: string): Promise<ChapterBoundary[]> {
@@ -41,37 +41,44 @@ export class GeminiProvider implements IAIProvider {
       model: this.textModel,
       contents: prompt,
       config: {
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.1,
       },
     });
-    const result = JSON.parse(response.text ?? '{}');
+    const result = JSON.parse(response.text ?? "{}");
     return result.chapters || result;
   }
 
-  async findKeyScenes(chapterText: string, bible: BookBible, chapterNumber: number): Promise<KeyScene[]> {
+  async findKeyScenes(
+    chapterText: string,
+    bible: BookBible,
+    chapterNumber: number
+  ): Promise<KeyScene[]> {
     const prompt = buildFindKeyScenesPrompt(chapterText, bible, chapterNumber);
     const response = await this.client.models.generateContent({
       model: this.textModel,
       contents: prompt,
       config: {
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.5,
       },
     });
-    const result = JSON.parse(response.text ?? '{}');
+    const result = JSON.parse(response.text ?? "{}");
     return result.scenes || result;
   }
 
-  async generateImage(prompt: string, referenceImages?: Buffer[]): Promise<Buffer> {
+  async generateImage(
+    prompt: string,
+    referenceImages?: Buffer[]
+  ): Promise<Buffer> {
     const parts: any[] = [];
 
     if (referenceImages?.length) {
       for (const img of referenceImages) {
         parts.push({
           inlineData: {
-            mimeType: 'image/webp',
-            data: img.toString('base64'),
+            mimeType: "image/webp",
+            data: img.toString("base64"),
           },
         });
       }
@@ -81,22 +88,22 @@ export class GeminiProvider implements IAIProvider {
 
     const response = await this.client.models.generateContent({
       model: this.imageModel,
-      contents: [{ role: 'user', parts }],
+      contents: [{ role: "user", parts }],
       config: {
-        responseModalities: ['image', 'text'],
+        responseModalities: ["image", "text"],
         temperature: 1.0,
       },
     });
 
-    const imagePart = response.candidates?.[0]?.content?.parts?.find(
-      (p: any) => p.inlineData?.mimeType?.startsWith('image/'),
+    const imagePart = response.candidates?.[0]?.content?.parts?.find((p: any) =>
+      p.inlineData?.mimeType?.startsWith("image/")
     );
 
     if (!imagePart?.inlineData?.data) {
-      throw new Error('No image generated');
+      throw new Error("No image generated");
     }
 
-    return Buffer.from(imagePart.inlineData.data, 'base64');
+    return Buffer.from(imagePart.inlineData.data, "base64");
   }
 
   async validateImage(image: Buffer, bible: BookBible): Promise<number> {
@@ -105,12 +112,12 @@ export class GeminiProvider implements IAIProvider {
       model: this.textModel,
       contents: [
         {
-          role: 'user',
+          role: "user",
           parts: [
             {
               inlineData: {
-                mimeType: 'image/webp',
-                data: image.toString('base64'),
+                mimeType: "image/webp",
+                data: image.toString("base64"),
               },
             },
             { text: prompt },
@@ -118,11 +125,11 @@ export class GeminiProvider implements IAIProvider {
         },
       ],
       config: {
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.1,
       },
     });
-    const result = JSON.parse(response.text ?? '{}');
-    return typeof result.score === 'number' ? result.score : 0.5;
+    const result = JSON.parse(response.text ?? "{}");
+    return typeof result.score === "number" ? result.score : 0.5;
   }
 }

@@ -25,7 +25,25 @@ export class PipelineService {
 
   /**
    * After analysis is complete, compose the rest of the pipeline as a BullMQ Flow.
-   * Flow: split -> anchors (parallel) -> prepare-scenes (batched) -> finalize
+   *
+   * BullMQ FlowProducer: children complete BEFORE their parent starts.
+   * Siblings (children of the same parent) run in parallel.
+   *
+   * Desired execution order:
+   *   1. SPLIT  (creates chapter records — must run first)
+   *   2. ANCHORS (only need bible, run in parallel) +
+   *      PREPARE_SCENES batches (need chapters from split, run sequentially)
+   *   3. FINALIZE (runs after everything above completes)
+   *
+   * Tree structure:
+   *   FINALIZE
+   *   ├── ANCHOR[0]          ← siblings run in parallel
+   *   ├── ANCHOR[1]
+   *   └── PREPARE_SCENES[N-1]  ← last batch
+   *       └── PREPARE_SCENES[N-2]
+   *           └── …
+   *               └── PREPARE_SCENES[0]  ← first batch
+   *                   └── SPLIT          ← leaf, executes first
    */
   async composePipelineAfterAnalysis(
     bookId: string,
@@ -42,41 +60,49 @@ export class PipelineService {
       batches.push(batch);
     }
 
-    // Build prepare-scenes children (depend on anchors completing)
-    const prepareSceneJobs = batches.map((chapterNums, idx) => ({
-      name: JOB_PREPARE_SCENES,
-      queueName: QUEUE_BOOK_PIPELINE,
-      data: { bookId, chapterNumbers: chapterNums, batchIndex: idx },
-    }));
-
-    // Build anchor children (depend on split completing)
+    // Anchor jobs (only need bible — run in parallel at the FINALIZE level)
     const anchorJobs = entityNames.map(name => ({
       name: JOB_ANCHOR,
       queueName: QUEUE_BOOK_PIPELINE,
       data: { bookId, entityName: name },
-      children: prepareSceneJobs.length > 0 ? undefined : undefined,
     }));
 
-    // Build the flow: finalize depends on prepare-scenes, which depends on anchors, which depends on split
-    // BullMQ Flow: parent waits for all children to complete
+    // Build a chain: SPLIT → PS[0] → PS[1] → … → PS[N-1]
+    // SPLIT is the leaf (runs first); each PS batch wraps the previous as its child.
+    let prepareChain: any = {
+      name: JOB_SPLIT,
+      queueName: QUEUE_BOOK_PIPELINE,
+      data: { bookId },
+    };
+
+    for (let idx = 0; idx < batches.length; idx++) {
+      prepareChain = {
+        name: JOB_PREPARE_SCENES,
+        queueName: QUEUE_BOOK_PIPELINE,
+        data: { bookId, chapterNumbers: batches[idx], batchIndex: idx },
+        children: [prepareChain],
+      };
+    }
+
+    // Compose the full flow
     const flow = await this.flowProducer.add({
       name: JOB_FINALIZE,
       queueName: QUEUE_BOOK_PIPELINE,
       data: { bookId },
-      children: prepareSceneJobs.map(psJob => ({
-        ...psJob,
-        children: anchorJobs.map(aJob => ({
-          ...aJob,
-          children: [{
-            name: JOB_SPLIT,
-            queueName: QUEUE_BOOK_PIPELINE,
-            data: { bookId },
-          }],
-        })),
-      })),
+      children: [
+        prepareChain,
+        ...anchorJobs,
+      ],
     });
 
-    this.logger.log(`Pipeline flow composed for book ${bookId}: ${entityNames.length} anchors, ${batches.length} scene batches`);
+    this.logger.log(
+      `[pipeline] Flow composed for book ${bookId}:\n` +
+      `  • 1 × SPLIT job\n` +
+      `  • ${batches.length} × PREPARE_SCENES batches (chapters: ${batches.map(b => `[${b.join(',')}]`).join(', ')})\n` +
+      `  • ${anchorJobs.length} × ANCHOR jobs (entities: [${entityNames.join(', ')}])\n` +
+      `  • 1 × FINALIZE job\n` +
+      `  • Flow root job id: ${flow.job.id}`,
+    );
     return flow;
   }
 }

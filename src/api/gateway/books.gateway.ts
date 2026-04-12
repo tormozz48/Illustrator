@@ -6,14 +6,14 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
-} from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
-import { WS_NAMESPACE_BOOKS } from '../../common/constants';
+} from "@nestjs/websockets";
+import { Logger } from "@nestjs/common";
+import { Server, Socket } from "socket.io";
+import { WS_NAMESPACE_BOOKS } from "../../common/constants";
 
 @WebSocketGateway({
   namespace: WS_NAMESPACE_BOOKS,
-  cors: { origin: '*' },
+  cors: { origin: "*" },
 })
 export class BooksGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(BooksGateway.name);
@@ -29,21 +29,21 @@ export class BooksGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  @SubscribeMessage('join')
+  @SubscribeMessage("join")
   handleJoin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { bookId: string },
+    @MessageBody() data: { bookId: string }
   ) {
     const room = `book:${data.bookId}`;
     client.join(room);
     this.logger.log(`Client ${client.id} joined room ${room}`);
-    return { event: 'joined', data: { room } };
+    return { event: "joined", data: { room } };
   }
 
-  @SubscribeMessage('leave')
+  @SubscribeMessage("leave")
   handleLeave(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { bookId: string },
+    @MessageBody() data: { bookId: string }
   ) {
     const room = `book:${data.bookId}`;
     client.leave(room);
@@ -52,20 +52,35 @@ export class BooksGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // Methods called by worker (via Redis pub/sub relay or direct injection)
   emitBookStatus(bookId: string, status: string) {
-    this.server.to(`book:${bookId}`).emit('book:status', { bookId, status });
+    this.server.to(`book:${bookId}`).emit("book:status", { bookId, status });
   }
 
-  emitVariantGenerated(bookId: string, chapterNum: number, sceneId: number, variant: any) {
-    this.server.to(`book:${bookId}`).emit('chapter:variant-generated', {
-      bookId, chapterNum, sceneId, variant,
+  emitVariantGenerated(
+    bookId: string,
+    chapterNum: number,
+    sceneId: number,
+    variant: any
+  ) {
+    this.logger.log(
+      `✅ [DEBUG] Emitting variant-generated to room book:${bookId} - chapter ${chapterNum}, scene ${sceneId}, variant.id=${variant.id}`
+    );
+    this.server.to(`book:${bookId}`).emit("chapter:variant-generated", {
+      bookId,
+      chapterNum,
+      sceneId,
+      variant,
     });
   }
 
   emitGenerationDone(bookId: string, chapterNum: number) {
-    this.server.to(`book:${bookId}`).emit('chapter:generation-done', { bookId, chapterNum });
+    this.server
+      .to(`book:${bookId}`)
+      .emit("chapter:generation-done", { bookId, chapterNum });
   }
 
   emitGenerationError(bookId: string, chapterNum: number, error: string) {
-    this.server.to(`book:${bookId}`).emit('chapter:generation-error', { bookId, chapterNum, error });
+    this.server
+      .to(`book:${bookId}`)
+      .emit("chapter:generation-error", { bookId, chapterNum, error });
   }
 }

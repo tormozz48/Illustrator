@@ -13,6 +13,8 @@ redis-data/
 .idea/
 .vscode/
 *.swp
+.claude/
+.roo/
 
 # OS
 .DS_Store
@@ -20,3 +22,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Build
+*.tsbuildinfo
